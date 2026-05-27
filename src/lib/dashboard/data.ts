@@ -137,6 +137,16 @@ export async function loadCleanerDashboard({ cleanerId }: { cleanerId?: string |
   const todaysEarningsCents = jobs
     .filter((job) => job.booking.booking_date === today && ["accepted", "in_progress", "completed"].includes(job.offer.status))
     .reduce((total, job) => total + (job.offer.earning_cents ?? 0), 0);
+  const verification = selectedCleaner
+    ? [
+      { label: "Availability status", value: selectedCleaner.available ? "Available" : "Paused" },
+      { label: "Equipment eligible", value: selectedCleaner.equipment_eligible ? "Yes" : "No" },
+      { label: "Service areas", value: `${selectedCleaner.suburbs.length}` },
+      { label: "Rating", value: selectedCleaner.rating > 0 ? `${selectedCleaner.rating.toFixed(1)} / 5` : "New cleaner" },
+      { label: "Tenure", value: `${selectedCleaner.tenure_months} month${selectedCleaner.tenure_months === 1 ? "" : "s"}` },
+      { label: "Payout verification", value: selectedCleaner.auth_user_id && selectedCleaner.auth_email ? "Verified" : "Action needed" },
+    ]
+    : [];
 
   return {
     cleanerId: validCleanerId,
@@ -149,13 +159,7 @@ export async function loadCleanerDashboard({ cleanerId }: { cleanerId?: string |
     completedJobs,
     activeJobs,
     todaysEarningsCents,
-    verification: [
-      { label: "Active cleaners", value: String(allCleaners.length) },
-      { label: "Available now", value: String(allCleaners.filter((cleaner) => cleaner.available).length) },
-      { label: "Equipment eligible", value: String(allCleaners.filter((cleaner) => cleaner.equipment_eligible).length) },
-      { label: "Regular Cleaning coverage", value: "Ready" },
-      { label: "Payout validation", value: "Ready" },
-    ],
+    verification,
   };
 }
 
