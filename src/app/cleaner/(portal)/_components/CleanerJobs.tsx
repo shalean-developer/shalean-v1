@@ -43,7 +43,7 @@ export function CleanerQuickStats({
   const activeCount = jobs.upcomingJobs.length + jobs.inProgressJobs.length;
 
   return (
-    <section className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+    <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
       <StatCard icon={<Wallet className="h-4 w-4" />} label="Today earnings" value={formatZar(todaysEarningsCents)} />
       <StatCard icon={<Briefcase className="h-4 w-4" />} label="Offers" value={String(jobs.offers.length)} />
       <StatCard icon={<Clock className="h-4 w-4" />} label="Active jobs" value={String(activeCount)} />
@@ -67,16 +67,16 @@ export function JobSection({
 }) {
   return (
     <section>
-      <div className="flex flex-col justify-between gap-1.5 sm:flex-row sm:items-end">
+      <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-end">
         <div>
-          <h2 className="text-lg font-black text-slate-950 sm:text-xl">{title}</h2>
-          <p className="mt-1 text-sm text-slate-600">{description}</p>
+          <h2 className="text-base font-black text-slate-950 sm:text-lg">{title}</h2>
+          <p className="mt-0.5 text-sm text-slate-600">{description}</p>
         </div>
         <Badge className="w-fit">{jobs.length}</Badge>
       </div>
-      <div className="mt-2.5 grid gap-2.5">
+      <div className="mt-2 grid gap-2">
         {jobs.length > 0 ? jobs.map((job) => <CleanerJobCard key={job.offer.id} job={job} mode={mode} />) : (
-          <Card className="p-4 text-sm text-slate-600">{empty}</Card>
+          <Card className="p-3 text-sm text-slate-600">{empty}</Card>
         )}
       </div>
     </section>
@@ -85,10 +85,10 @@ export function JobSection({
 
 function StatCard({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
-    <Card className="p-3.5 sm:p-4">
-      <div className="flex items-center gap-2 text-emerald-700">{icon}</div>
-      <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <p className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">{value}</p>
+    <Card className="p-3 sm:p-3.5">
+      <div className="flex items-center gap-1.5 text-emerald-700">{icon}</div>
+      <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-0.5 text-lg font-black text-slate-950 sm:text-xl">{value}</p>
     </Card>
   );
 }
@@ -98,11 +98,11 @@ function CleanerJobCard({ job, mode }: { job: CleanerDashboardJob; mode: "offer"
   const navigationUrl = job.safeAddress ? buildMapsUrl(job.safeAddress, booking.suburb) : null;
 
   return (
-    <Card className="p-3.5 sm:p-4">
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+    <Card className="p-3 sm:p-3.5">
+      <div className="flex flex-col justify-between gap-2.5 sm:flex-row sm:items-start">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-bold text-slate-950">{slugToTitle(booking.service_slug)}</h3>
+            <h3 className="text-[15px] font-bold text-slate-950 sm:text-base">{slugToTitle(booking.service_slug)}</h3>
             <Badge className={statusBadgeClass(mode)}>{statusLabel(mode)}</Badge>
             {job.offer.is_preferred ? <Badge>Preferred</Badge> : null}
           </div>
@@ -118,13 +118,13 @@ function CleanerJobCard({ job, mode }: { job: CleanerDashboardJob; mode: "offer"
             <p className="mt-1 text-sm text-slate-500">Full address unlocks after acceptance.</p>
           )}
         </div>
-        <div className="rounded-md bg-emerald-50 px-3 py-2 text-left sm:text-right">
+        <div className="rounded-md bg-emerald-50 px-2.5 py-1.5 text-left sm:text-right">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-900">Your earning</p>
-          <p className="text-lg font-black text-emerald-800">{formatZar(job.offer.earning_cents ?? 0)}</p>
+          <p className="text-base font-black text-emerald-800 sm:text-lg">{formatZar(job.offer.earning_cents ?? 0)}</p>
         </div>
       </div>
 
-      <div className="mt-3 grid gap-2 rounded-md bg-slate-50 p-3 text-sm text-slate-600 sm:grid-cols-2">
+      <div className="mt-2.5 grid gap-1.5 rounded-md bg-slate-50 p-2.5 text-xs text-slate-600 sm:grid-cols-2 sm:text-sm">
         <Detail label="Bedrooms" value={String(booking.bedrooms)} />
         <Detail label="Bathrooms" value={String(booking.bathrooms)} />
         <Detail label="Extra rooms" value={String(booking.extra_rooms)} />
@@ -139,29 +139,29 @@ function CleanerJobCard({ job, mode }: { job: CleanerDashboardJob; mode: "offer"
       </div>
 
       {booking.customer_notes ? (
-        <div className="mt-3 rounded-md border border-slate-200 p-3 text-sm text-slate-600">
+        <div className="mt-2.5 rounded-md border border-slate-200 p-2.5 text-sm text-slate-600">
           <strong className="text-slate-950">Customer notes:</strong> {booking.customer_notes}
         </div>
       ) : null}
 
       {job.safeNotes ? (
-        <div className="mt-3 rounded-md border border-slate-200 p-3 text-sm text-slate-600">
+        <div className="mt-2.5 rounded-md border border-slate-200 p-2.5 text-sm text-slate-600">
           <strong className="text-slate-950">Access notes:</strong> {job.safeNotes}
         </div>
       ) : null}
 
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-2.5 flex flex-wrap gap-1.5">
         {mode === "offer" ? (
           <>
             <form action={acceptOfferAction}>
               <HiddenOfferFields job={job} />
-              <button className="rounded-md bg-emerald-700 px-3 py-2 text-sm font-bold text-white" type="submit">
+              <button className="rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-bold text-white" type="submit">
                 Accept
               </button>
             </form>
             <form action={declineOfferAction}>
               <HiddenOfferFields job={job} />
-              <button className="rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700" type="submit">
+              <button className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-bold text-slate-700" type="submit">
                 Decline
               </button>
             </form>
@@ -170,7 +170,7 @@ function CleanerJobCard({ job, mode }: { job: CleanerDashboardJob; mode: "offer"
 
         {navigationUrl ? (
           <a
-            className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700"
+            className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-bold text-slate-700"
             href={navigationUrl}
             rel="noreferrer"
             target="_blank"
@@ -183,7 +183,7 @@ function CleanerJobCard({ job, mode }: { job: CleanerDashboardJob; mode: "offer"
         {mode === "accepted" ? (
           <form action={startJobAction}>
             <HiddenOfferFields job={job} />
-            <button className="inline-flex items-center gap-2 rounded-md bg-slate-950 px-3 py-2 text-sm font-bold text-white" type="submit">
+            <button className="inline-flex items-center gap-2 rounded-md bg-slate-950 px-3 py-1.5 text-sm font-bold text-white" type="submit">
               <Play className="h-4 w-4" />
               Start job
             </button>
@@ -193,7 +193,7 @@ function CleanerJobCard({ job, mode }: { job: CleanerDashboardJob; mode: "offer"
         {mode === "in_progress" ? (
           <form action={completeJobAction}>
             <HiddenOfferFields job={job} />
-            <button className="inline-flex items-center gap-2 rounded-md bg-emerald-700 px-3 py-2 text-sm font-bold text-white" type="submit">
+            <button className="inline-flex items-center gap-2 rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-bold text-white" type="submit">
               <CheckCircle2 className="h-4 w-4" />
               Complete job
             </button>
@@ -201,7 +201,7 @@ function CleanerJobCard({ job, mode }: { job: CleanerDashboardJob; mode: "offer"
         ) : null}
 
         {mode === "completed" ? (
-          <span className="inline-flex items-center gap-2 rounded-md bg-slate-100 px-3 py-2 text-sm font-bold text-slate-600">
+          <span className="inline-flex items-center gap-2 rounded-md bg-slate-100 px-3 py-1.5 text-sm font-bold text-slate-600">
             <RotateCcw className="h-4 w-4" />
             Ready for payout review
           </span>

@@ -36,16 +36,16 @@ export function CleanerPortalShell({
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-900 bg-slate-950 px-3 py-3 text-white sm:px-4 lg:px-6">
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3">
+      <header className="sticky top-0 z-30 border-b border-slate-900 bg-slate-950 px-3 py-2.5 text-white sm:px-4 sm:py-3 lg:px-6">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-2">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-300">Shalean</p>
-            <h1 className="text-base font-black sm:text-lg">Cleaner portal</h1>
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">Shalean</p>
+            <h1 className="text-sm font-black sm:text-base">Cleaner portal</h1>
           </div>
           <button
             aria-expanded={mobileMenuOpen}
             aria-label={mobileMenuOpen ? "Close cleaner menu" : "Open cleaner menu"}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-white/20 text-white hover:bg-white/10 lg:hidden"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-white/20 text-white hover:bg-white/10 lg:hidden"
             onClick={() => setMobileMenuOpen((open) => !open)}
             type="button"
           >
@@ -56,8 +56,8 @@ export function CleanerPortalShell({
       </header>
 
       {mobileMenuOpen ? (
-        <div className="fixed inset-0 z-40 bg-slate-950/50 lg:hidden">
-          <div className="h-full w-[82%] max-w-sm bg-white p-4 shadow-xl">
+        <div className="fixed inset-0 z-40 bg-slate-950/50 lg:hidden" onClick={() => setMobileMenuOpen(false)}>
+          <div className="h-full w-[84%] max-w-[20rem] bg-white p-3.5 shadow-xl" onClick={(event) => event.stopPropagation()}>
             <MobileCleanerMenu
               availabilityBadgeClass={availabilityBadgeClass}
               availabilityLabel={availabilityLabel}
@@ -71,7 +71,7 @@ export function CleanerPortalShell({
         </div>
       ) : null}
 
-      <main className="mx-auto grid w-full max-w-7xl gap-4 px-3 py-4 sm:gap-5 sm:px-4 sm:py-5 lg:grid-cols-[250px_1fr] lg:gap-6 lg:px-6 lg:py-6">
+      <main className="mx-auto grid w-full max-w-7xl gap-3 px-2.5 py-3 sm:gap-4 sm:px-4 sm:py-4 lg:grid-cols-[250px_1fr] lg:gap-5 lg:px-6 lg:py-5">
         <aside className="hidden lg:block">
           <DesktopCleanerNav
             availabilityBadgeClass={availabilityBadgeClass}
@@ -101,7 +101,7 @@ function DesktopCleanerNav({
   pathname: string;
 }) {
   return (
-    <Card className="sticky top-4 p-4">
+    <Card className="sticky top-[4.5rem] p-3.5">
       <div className="flex items-center gap-3">
         <Image alt={`${cleanerName} profile`} className="h-12 w-12 rounded-full object-cover" height={48} src={cleanerPhotoUrl} width={48} />
         <div>
@@ -111,12 +111,12 @@ function DesktopCleanerNav({
       </div>
       <Badge className={cn("mt-3", availabilityBadgeClass)}>{availabilityLabel}</Badge>
 
-      <nav className="mt-4 grid gap-2">
+      <nav className="mt-3 grid gap-1.5">
         {cleanerLinks.map((link) => (
           <Link
             key={link.href}
             className={cn(
-              "rounded-md px-3 py-2 text-sm font-bold transition",
+              "rounded-md px-3 py-1.5 text-sm font-bold transition",
               isActiveLink(pathname, link.href)
                 ? "bg-emerald-700 text-white"
                 : "text-slate-700 hover:bg-slate-100",
@@ -128,7 +128,7 @@ function DesktopCleanerNav({
         ))}
       </nav>
 
-      <form action="/cleaner/logout" className="mt-5" method="post">
+      <form action="/cleaner/logout" className="mt-4" method="post">
         <button className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50" type="submit">
           Sign out
         </button>
@@ -174,7 +174,7 @@ function MobileCleanerMenu({
         </button>
       </div>
 
-      <nav className="mt-5 grid gap-2">
+      <nav className="mt-4 grid gap-1.5">
         {cleanerLinks.map((link) => (
           <Link
             key={link.href}
