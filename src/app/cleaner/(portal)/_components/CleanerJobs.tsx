@@ -1,7 +1,10 @@
-import type { ReactNode } from "react";
+ "use client";
+
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Briefcase,
   CheckCircle2,
+  CircleHelp,
   Clock,
   MapPin,
   Play,
@@ -28,16 +31,20 @@ import {
   startJobAction,
 } from "../actions";
 
+type JobMode = "offer" | "accepted" | "in_progress" | "completed";
+
+type CleanerJobsByCategory = {
+  offers: CleanerDashboardJob[];
+  upcomingJobs: CleanerDashboardJob[];
+  inProgressJobs: CleanerDashboardJob[];
+  completedJobs: CleanerDashboardJob[];
+};
+
 export function CleanerQuickStats({
   jobs,
   todaysEarningsCents,
 }: {
-  jobs: {
-    offers: CleanerDashboardJob[];
-    upcomingJobs: CleanerDashboardJob[];
-    inProgressJobs: CleanerDashboardJob[];
-    completedJobs: CleanerDashboardJob[];
-  };
+  jobs: CleanerJobsByCategory;
   todaysEarningsCents: number;
 }) {
   const activeCount = jobs.upcomingJobs.length + jobs.inProgressJobs.length;
@@ -52,19 +59,112 @@ export function CleanerQuickStats({
   );
 }
 
+type JobTabConfig = {
+  id: "offers" | "upcoming" | "inProgress" | "completed";
+  title: string;
+  tooltip: string;
+  empty: string;
+  jobs: CleanerDashboardJob[];
+  mode: JobMode;
+};
+
+export function CleanerJobTabs({ jobs }: { jobs: CleanerJobsByCategory }) {
+  const tabs = useMemo<JobTabConfig[]>(
+    () => [
+      {
+        id: "offers",
+        title: "Offers",
+        tooltip: "Accept jobs that fit your schedule. Full addresses unlock once accepted.",
+        empty: "No new Regular Cleaning offers right now.",
+        jobs: jobs.offers,
+        mode: "offer",
+      },
+      {
+        id: "upcoming",
+        title: "Upcoming",
+        tooltip: "Confirmed jobs you can prepare for and start.",
+        empty: "No accepted upcoming jobs yet.",
+        jobs: jobs.upcomingJobs,
+        mode: "accepted",
+      },
+      {
+        id: "inProgress",
+        title: "In Progress",
+        tooltip: "Jobs already started and waiting for completion.",
+        empty: "No jobs are currently in progress.",
+        jobs: jobs.inProgressJobs,
+        mode: "in_progress",
+      },
+      {
+        id: "completed",
+        title: "Completed",
+        tooltip: "Recently completed jobs and payout-ready work.",
+        empty: "Completed jobs will appear here.",
+        jobs: jobs.completedJobs,
+        mode: "completed",
+      },
+    ],
+    [jobs.completedJobs, jobs.inProgressJobs, jobs.offers, jobs.upcomingJobs],
+  );
+  const [activeTab, setActiveTab] = useState<JobTabConfig["id"]>("offers");
+  const selectedTab = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
+
+  return (
+    <section className="space-y-3 sm:space-y-4">
+      <div className="overflow-x-auto">
+        <div className="inline-flex min-w-full gap-1.5 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+          {tabs.map((tab) => {
+            const isActive = tab.id === selectedTab.id;
+            return (
+              <button
+                key={tab.id}
+                className={cn(
+                  "inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border px-3 py-2 text-sm font-semibold transition-colors",
+                  isActive
+                    ? "border-emerald-700 bg-emerald-700 text-white shadow-sm"
+                    : "border-transparent bg-white text-slate-700 hover:border-slate-200 hover:bg-slate-50",
+                )}
+                onClick={() => setActiveTab(tab.id)}
+                type="button"
+              >
+                <span>{tab.title}</span>
+                <Badge
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-xs",
+                    isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700",
+                  )}
+                >
+                  {tab.jobs.length}
+                </Badge>
+                <span
+                  aria-label={`${tab.title}: ${tab.tooltip}`}
+                  className={cn("inline-flex items-center", isActive ? "text-white/85" : "text-slate-500")}
+                  title={tab.tooltip}
+                >
+                  <CircleHelp className="h-3.5 w-3.5" />
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <JobSection empty={selectedTab.empty} jobs={selectedTab.jobs} mode={selectedTab.mode} title={selectedTab.title} />
+    </section>
+  );
+}
+
 export function JobSection({
   title,
-  description,
   empty,
   jobs,
   mode,
   className,
 }: {
   title: string;
-  description: string;
   empty: string;
   jobs: CleanerDashboardJob[];
-  mode: "offer" | "accepted" | "in_progress" | "completed";
+  mode: JobMode;
   className?: string;
 }) {
   return (
@@ -72,7 +172,6 @@ export function JobSection({
       <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-end">
         <div>
           <h2 className="text-base font-black text-slate-950 sm:text-lg">{title}</h2>
-          <p className="mt-0.5 text-sm text-slate-600">{description}</p>
         </div>
         <Badge className="w-fit">{jobs.length}</Badge>
       </div>
@@ -95,7 +194,7 @@ function StatCard({ icon, label, value }: { icon: ReactNode; label: string; valu
   );
 }
 
-function CleanerJobCard({ job, mode }: { job: CleanerDashboardJob; mode: "offer" | "accepted" | "in_progress" | "completed" }) {
+function CleanerJobCard({ job, mode }: { job: CleanerDashboardJob; mode: JobMode }) {
   const booking = job.booking;
   const navigationUrl = job.safeAddress ? buildMapsUrl(job.safeAddress, booking.suburb) : null;
 
