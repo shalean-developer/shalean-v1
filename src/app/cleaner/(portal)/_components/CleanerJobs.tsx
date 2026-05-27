@@ -20,7 +20,7 @@ import {
   statusBadgeClass,
   statusLabel,
 } from "@/lib/cleaner/portal";
-import { formatZar, slugToTitle } from "@/lib/utils";
+import { cn, formatZar, slugToTitle } from "@/lib/utils";
 import {
   acceptOfferAction,
   completeJobAction,
@@ -58,15 +58,17 @@ export function JobSection({
   empty,
   jobs,
   mode,
+  className,
 }: {
   title: string;
   description: string;
   empty: string;
   jobs: CleanerDashboardJob[];
   mode: "offer" | "accepted" | "in_progress" | "completed";
+  className?: string;
 }) {
   return (
-    <section>
+    <section className={cn("h-full", className)}>
       <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-end">
         <div>
           <h2 className="text-base font-black text-slate-950 sm:text-lg">{title}</h2>

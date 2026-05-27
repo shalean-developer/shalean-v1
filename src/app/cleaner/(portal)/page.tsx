@@ -39,8 +39,9 @@ export default async function CleanerDashboardPage() {
       />
 
       <div className="grid gap-3 sm:gap-4 xl:grid-cols-[1fr_320px]">
-        <section className="grid gap-3 sm:gap-4">
+        <section className="grid gap-3 sm:gap-4 lg:grid-cols-2 2xl:grid-cols-4">
           <JobSection
+            className="min-w-0"
             description="Accept jobs that fit your schedule. Full addresses unlock once accepted."
             empty="No new Regular Cleaning offers right now."
             jobs={dashboard.offers}
@@ -48,6 +49,7 @@ export default async function CleanerDashboardPage() {
             title="Offers"
           />
           <JobSection
+            className="min-w-0"
             description="Confirmed jobs you can prepare for and start."
             empty="No accepted upcoming jobs yet."
             jobs={dashboard.upcomingJobs}
@@ -55,6 +57,7 @@ export default async function CleanerDashboardPage() {
             title="Upcoming jobs"
           />
           <JobSection
+            className="min-w-0"
             description="Jobs already started and waiting for completion."
             empty="No jobs are currently in progress."
             jobs={dashboard.inProgressJobs}
@@ -62,6 +65,7 @@ export default async function CleanerDashboardPage() {
             title="In progress jobs"
           />
           <JobSection
+            className="min-w-0"
             description="Recently completed jobs and payout-ready work."
             empty="Completed jobs will appear here."
             jobs={dashboard.completedJobs}
