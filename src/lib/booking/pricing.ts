@@ -1,12 +1,85 @@
 import { getService } from "./services";
-import type { BookingDraft, BookingQuote } from "./types";
+import type { BookingDraft, BookingQuote, PremiumAddOnKey } from "./types";
 
-const addOnPrices = {
-  equipment: 9000,
-  insideFridge: 6000,
-  insideOven: 8000,
-  windows: 12000,
-  laundry: 9000,
+export type PremiumAddOnDefinition = {
+  key: PremiumAddOnKey;
+  label: string;
+  description: string;
+  priceCents: number;
+  durationHours: number;
+  workloadWeight: number;
+};
+
+export const regularCleaningAddOns: PremiumAddOnDefinition[] = [
+  {
+    key: "insideCabinets",
+    label: "Inside Cabinets",
+    description: "Kitchen and storage cabinet interiors wiped and reset.",
+    priceCents: 9500,
+    durationHours: 0.55,
+    workloadWeight: 1,
+  },
+  {
+    key: "insideOven",
+    label: "Inside Oven",
+    description: "Interior oven clean for everyday grease and residue.",
+    priceCents: 8500,
+    durationHours: 0.5,
+    workloadWeight: 1,
+  },
+  {
+    key: "insideFridge",
+    label: "Inside Fridge",
+    description: "Shelves, trays, and interior fridge surfaces cleaned.",
+    priceCents: 7000,
+    durationHours: 0.4,
+    workloadWeight: 0.8,
+  },
+  {
+    key: "interiorWalls",
+    label: "Interior Walls",
+    description: "Spot-clean visible wall marks in high-use areas.",
+    priceCents: 14000,
+    durationHours: 0.8,
+    workloadWeight: 1.4,
+  },
+  {
+    key: "ironing",
+    label: "Ironing",
+    description: "Light household ironing folded and staged.",
+    priceCents: 9000,
+    durationHours: 0.7,
+    workloadWeight: 1.1,
+  },
+  {
+    key: "laundry",
+    label: "Laundry",
+    description: "Laundry load support for wash, hang, fold, or rotate.",
+    priceCents: 9000,
+    durationHours: 0.65,
+    workloadWeight: 1,
+  },
+  {
+    key: "interiorWindows",
+    label: "Interior Windows",
+    description: "Interior glass, sills, and reachable frames.",
+    priceCents: 12500,
+    durationHours: 0.75,
+    workloadWeight: 1.25,
+  },
+];
+
+export const equipmentPackage = {
+  label: "Cleaning Equipment",
+  priceCents: 9000,
+  durationHours: 0.15,
+  items: [
+    "Vacuum cleaner",
+    "Mop & bucket",
+    "Cleaning chemicals",
+    "Microfiber cloths",
+    "Professional tools",
+  ],
 };
 
 const recurringDiscounts = {
@@ -18,8 +91,12 @@ const recurringDiscounts = {
 
 export function createEmptyBookingDraft(): BookingDraft {
   return {
+    checkoutId: createCheckoutId(),
     serviceSlug: "regular-cleaning",
     frequency: "once",
+    recurrence: {
+      weekdays: [],
+    },
     date: "",
     timeWindow: "08:00-12:00",
     address: "",
@@ -30,13 +107,20 @@ export function createEmptyBookingDraft(): BookingDraft {
     extraRooms: 0,
     squareMeters: 80,
     addOns: {
-      equipment: false,
-      insideFridge: false,
+      insideCabinets: false,
       insideOven: false,
-      windows: false,
+      insideFridge: false,
+      interiorWalls: false,
+      ironing: false,
       laundry: false,
+      interiorWindows: false,
+    },
+    equipment: {
+      mode: "without_equipment",
+      items: equipmentPackage.items,
     },
     assignmentMode: "auto",
+    selectedCleanerIds: [],
     requestedCleaners: 1,
     customer: {
       name: "",
@@ -45,6 +129,14 @@ export function createEmptyBookingDraft(): BookingDraft {
     },
     notes: "",
   };
+}
+
+function createCheckoutId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return "00000000-0000-4000-8000-000000000000";
 }
 
 export function estimateWorkloadHours(draft: BookingDraft) {
@@ -59,11 +151,12 @@ export function estimateWorkloadHours(draft: BookingDraft) {
     draft.extraRooms * 0.45 +
     Math.max(0, draft.squareMeters - 80) / 75;
 
-  const addOnHours =
-    Number(draft.addOns.insideFridge) * 0.35 +
-    Number(draft.addOns.insideOven) * 0.45 +
-    Number(draft.addOns.windows) * 0.65 +
-    Number(draft.addOns.laundry) * 0.5;
+  const addOnHours = getSelectedAddOns(draft).reduce(
+    (total, addOn) => total + addOn.durationHours,
+    0,
+  );
+
+  const equipmentHours = draft.equipment.mode === "with_equipment" ? equipmentPackage.durationHours : 0;
 
   const categoryMultiplier =
     service.category === "deep" || service.category === "move"
@@ -74,12 +167,13 @@ export function estimateWorkloadHours(draft: BookingDraft) {
           ? 1.1
           : 1;
 
-  return Math.max(service.minHours, (service.minHours + roomHours + addOnHours) * categoryMultiplier);
+  return Math.max(service.minHours, (service.minHours + roomHours + addOnHours + equipmentHours) * categoryMultiplier);
 }
 
-export function recommendCleaners(draft: BookingDraft) {
+export function recommendCleanerCount(draft: BookingDraft) {
   const service = getService(draft.serviceSlug);
   const hours = estimateWorkloadHours(draft);
+  const addOnWeight = getSelectedAddOns(draft).reduce((total, addOn) => total + addOn.workloadWeight, 0);
 
   if (!service) {
     return 1;
@@ -90,10 +184,22 @@ export function recommendCleaners(draft: BookingDraft) {
   }
 
   if (service.allowMultipleCleaners) {
-    return Math.min(4, Math.max(1, draft.requestedCleaners || Math.ceil(hours / 4.5)));
+    const roomPressure = draft.bedrooms + draft.bathrooms + draft.extraRooms >= 6 ? 1 : 0;
+    return Math.min(4, Math.max(1, Math.ceil(hours / 4.5), Math.ceil(addOnWeight / 3), 1 + roomPressure));
   }
 
   return 1;
+}
+
+export function recommendCleaners(draft: BookingDraft) {
+  const service = getService(draft.serviceSlug);
+  const recommended = recommendCleanerCount(draft);
+
+  if (!service?.allowMultipleCleaners) {
+    return recommended;
+  }
+
+  return Math.min(4, Math.max(1, draft.requestedCleaners));
 }
 
 export function calculateQuote(draft: BookingDraft): BookingQuote {
@@ -103,38 +209,59 @@ export function calculateQuote(draft: BookingDraft): BookingQuote {
     throw new Error("Unknown service");
   }
 
-  const hours = estimateWorkloadHours(draft);
+  const workloadHours = estimateWorkloadHours(draft);
   const cleanerCount = recommendCleaners(draft);
-  const lineItems = [
-    { label: service.title, amountCents: service.baseCents },
-    { label: `${draft.bedrooms} bedroom allocation`, amountCents: draft.bedrooms * 7000 },
-    { label: `${draft.bathrooms} bathroom allocation`, amountCents: draft.bathrooms * 8500 },
+  const recommendedCleanerCount = recommendCleanerCount(draft);
+  const visitHours = Math.max(service.minHours / cleanerCount, workloadHours / cleanerCount);
+  const lineItems: BookingQuote["lineItems"] = [
+    { label: service.title, amountCents: service.baseCents, category: "base" },
+    { label: `${draft.bedrooms} bedroom allocation`, amountCents: draft.bedrooms * 7000, category: "rooms" },
+    { label: `${draft.bathrooms} bathroom allocation`, amountCents: draft.bathrooms * 8500, category: "rooms" },
   ];
 
   if (draft.extraRooms > 0) {
-    lineItems.push({ label: `${draft.extraRooms} extra room allocation`, amountCents: draft.extraRooms * 6500 });
+    lineItems.push({ label: `${draft.extraRooms} extra room allocation`, amountCents: draft.extraRooms * 6500, category: "rooms" });
   }
 
   if (draft.squareMeters > 120) {
     lineItems.push({
       label: "Large property adjustment",
       amountCents: Math.ceil((draft.squareMeters - 120) / 25) * 5500,
+      category: "rooms",
     });
   }
 
-  Object.entries(draft.addOns).forEach(([key, enabled]) => {
-    if (enabled && key in addOnPrices) {
-      lineItems.push({
-        label: key.replace(/([A-Z])/g, " $1").toLowerCase(),
-        amountCents: addOnPrices[key as keyof typeof addOnPrices],
-      });
-    }
+  getSelectedAddOns(draft).forEach((addOn) => {
+    lineItems.push({
+      label: addOn.label,
+      amountCents: addOn.priceCents,
+      durationHours: addOn.durationHours,
+      category: "addon",
+    });
   });
+
+  if (draft.equipment.mode === "with_equipment") {
+    lineItems.push({
+      label: equipmentPackage.label,
+      amountCents: equipmentPackage.priceCents,
+      durationHours: equipmentPackage.durationHours,
+      category: "equipment",
+    });
+  }
+
+  if (!service.requiresTeam && cleanerCount > 1) {
+    lineItems.push({
+      label: `${cleanerCount} cleaner team speed-up`,
+      amountCents: (cleanerCount - 1) * 18000,
+      category: "cleaners",
+    });
+  }
 
   if (service.requiresTeam) {
     lineItems.push({
       label: `${cleanerCount}-person team dispatch`,
       amountCents: cleanerCount * 12500,
+      category: "team",
     });
   }
 
@@ -149,17 +276,25 @@ export function calculateQuote(draft: BookingDraft): BookingQuote {
     subtotalCents,
     discountCents,
     cleanerCount,
+    recommendedCleanerCount,
     recommendedTeamSize: service.requiresTeam ? cleanerCount : 0,
-    estimatedHours: Number(hours.toFixed(1)),
+    estimatedHours: Number(visitHours.toFixed(1)),
+    workloadHours: Number(workloadHours.toFixed(1)),
     requiresTeam: service.requiresTeam,
     lineItems,
+    addOnTotalCents: getSelectedAddOns(draft).reduce((total, addOn) => total + addOn.priceCents, 0),
+    equipmentCents: draft.equipment.mode === "with_equipment" ? equipmentPackage.priceCents : 0,
     payout,
   };
 }
 
+export function getSelectedAddOns(draft: BookingDraft) {
+  return regularCleaningAddOns.filter((addOn) => draft.addOns[addOn.key]);
+}
+
 export function calculatePayout(
   draft: BookingDraft,
-  totalCents: number,
+  _totalCents: number,
   cleanerCount: number,
   cleanerTenureMonths = 0,
 ) {
@@ -184,7 +319,12 @@ export function calculatePayout(
   }
 
   const commission = cleanerTenureMonths >= 4 ? 0.7 : 0.6;
-  const perCleanerCents = clamp(Math.round((totalCents * commission) / safeCleanerCount), 25000, 35000);
+  const eligibleCents =
+    draft.bedrooms * 7000 +
+    draft.bathrooms * 8500 +
+    draft.extraRooms * 6500 +
+    getSelectedAddOns(draft).reduce((total, addOn) => total + addOn.priceCents, 0);
+  const perCleanerCents = clamp(Math.round(eligibleCents * commission), 25000, 30000);
 
   return {
     cleanerTotalCents: perCleanerCents * safeCleanerCount,

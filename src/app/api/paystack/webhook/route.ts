@@ -1,4 +1,5 @@
 import { verifyPaystackSignature } from "@/lib/payments/paystack";
+import { reconcilePaystackPayment } from "@/lib/payments/reconciliation";
 
 export const runtime = "nodejs";
 
@@ -20,10 +21,32 @@ export async function POST(request: Request) {
     };
   };
 
+  if (event.event !== "charge.success") {
+    return Response.json({
+      received: true,
+      event: event.event,
+      reconciled: false,
+    });
+  }
+
+  const reference = event.data?.reference;
+
+  if (!reference) {
+    return Response.json({ error: "Missing Paystack reference" }, { status: 422 });
+  }
+
+  const result = await reconcilePaystackPayment({
+    bookingId: event.data?.metadata?.bookingId,
+    reference,
+    source: "webhook",
+  });
+
   return Response.json({
     received: true,
     event: event.event,
-    bookingId: event.data?.metadata?.bookingId,
-    idempotencyKey: event.data?.reference,
+    bookingId: result.bookingId,
+    paymentId: result.paymentId,
+    idempotencyKey: result.reference,
+    reconciled: result.reconciled,
   });
 }

@@ -8,6 +8,16 @@ export type ServiceCategory =
 
 export type AssignmentMode = "auto" | "preferred_cleaner" | "customer_team";
 export type Frequency = "once" | "weekly" | "fortnightly" | "monthly";
+export type EquipmentMode = "with_equipment" | "without_equipment";
+
+export type PremiumAddOnKey =
+  | "insideCabinets"
+  | "insideOven"
+  | "insideFridge"
+  | "interiorWalls"
+  | "ironing"
+  | "laundry"
+  | "interiorWindows";
 
 export type BookingLifecycleStatus =
   | "draft"
@@ -39,8 +49,12 @@ export type ServiceDefinition = {
 };
 
 export type BookingDraft = {
+  checkoutId: string;
   serviceSlug: string;
   frequency: Frequency;
+  recurrence: {
+    weekdays: number[];
+  };
   date: string;
   timeWindow: string;
   address: string;
@@ -50,15 +64,14 @@ export type BookingDraft = {
   bathrooms: number;
   extraRooms: number;
   squareMeters: number;
-  addOns: {
-    equipment: boolean;
-    insideFridge: boolean;
-    insideOven: boolean;
-    windows: boolean;
-    laundry: boolean;
+  addOns: Record<PremiumAddOnKey, boolean>;
+  equipment: {
+    mode: EquipmentMode;
+    items: string[];
   };
   assignmentMode: AssignmentMode;
   preferredCleanerId?: string;
+  selectedCleanerIds: string[];
   requestedCleaners: number;
   customer: {
     name: string;
@@ -71,6 +84,8 @@ export type BookingDraft = {
 export type QuoteLineItem = {
   label: string;
   amountCents: number;
+  durationHours?: number;
+  category?: "base" | "rooms" | "addon" | "equipment" | "cleaners" | "team";
 };
 
 export type BookingQuote = {
@@ -79,10 +94,14 @@ export type BookingQuote = {
   subtotalCents: number;
   discountCents: number;
   cleanerCount: number;
+  recommendedCleanerCount: number;
   recommendedTeamSize: number;
   estimatedHours: number;
+  workloadHours: number;
   requiresTeam: boolean;
   lineItems: QuoteLineItem[];
+  addOnTotalCents: number;
+  equipmentCents: number;
   payout: {
     cleanerTotalCents: number;
     perCleanerCents: number;

@@ -1,11 +1,14 @@
 import Link from "next/link";
 import Image from "next/image";
+import { redirect } from "next/navigation";
 import { ArrowRight, BarChart3, CalendarCheck, CreditCard, ShieldCheck, UsersRound, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
+import { clearCleanerSession, getCleanerSession, getCurrentUser, getProfileForUser } from "@/lib/auth/server";
 import { siteConfig, suburbSlugs } from "@/lib/config/site";
 import { serviceCatalog } from "@/lib/booking/services";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { formatZar } from "@/lib/utils";
 
 const platformStats = [
@@ -48,7 +51,15 @@ const platformFeatures: Array<{ title: string; icon: LucideIcon; text: string }>
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const [user, cleanerSession] = await Promise.all([getCurrentUser(), getCleanerSession()]);
+  const profile = user ? await getProfileForUser(user.id) : null;
+  const dashboardHref = profile?.role === "admin"
+    ? "/admin/cleaners"
+    : profile?.role === "customer"
+      ? "/dashboard"
+      : "/cleaner";
+  const isLoggedIn = Boolean(user || cleanerSession);
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "LocalBusiness",
@@ -85,11 +96,31 @@ export default function Home() {
               <Link href="/book">Book</Link>
               <Link href="/dashboard">Customers</Link>
               <Link href="/cleaner">Cleaners</Link>
-              <Link href="/admin">Admin</Link>
+              <Link href="/admin/cleaners">Admin</Link>
             </div>
-            <Link className={buttonVariants({ variant: "primary", size: "sm" })} href="/book">
-              Book now
-            </Link>
+            <div className="flex items-center gap-2">
+              {isLoggedIn ? (
+                <>
+                  <Link className={buttonVariants({ variant: "outline", size: "sm", className: "border-white/30 bg-white/10 text-white hover:bg-white/20" })} href={dashboardHref}>
+                    Dashboard
+                  </Link>
+                  <form action={homeLogoutAction}>
+                    <button className={buttonVariants({ variant: "primary", size: "sm" })} type="submit">
+                      Logout
+                    </button>
+                  </form>
+                </>
+              ) : (
+                <>
+                  <Link className={buttonVariants({ variant: "outline", size: "sm", className: "border-white/30 bg-white/10 text-white hover:bg-white/20" })} href="/admin/login">
+                    Login
+                  </Link>
+                  <Link className={buttonVariants({ variant: "primary", size: "sm" })} href="/book">
+                    Book now
+                  </Link>
+                </>
+              )}
+            </div>
           </nav>
 
           <div className="max-w-3xl pb-10 pt-24 sm:pb-16">
@@ -104,7 +135,7 @@ export default function Home() {
               <Link className={buttonVariants({ size: "lg" })} href="/book">
                 Start booking <ArrowRight className="h-4 w-4" />
               </Link>
-              <Link className={buttonVariants({ variant: "outline", size: "lg", className: "border-white/30 bg-white/10 text-white hover:bg-white/20" })} href="/admin">
+              <Link className={buttonVariants({ variant: "outline", size: "lg", className: "border-white/30 bg-white/10 text-white hover:bg-white/20" })} href="/admin/cleaners">
                 View operations
               </Link>
             </div>
@@ -176,4 +207,15 @@ export default function Home() {
       </section>
     </main>
   );
+}
+
+async function homeLogoutAction() {
+  "use server";
+
+  const supabase = await createSupabaseServerClient();
+  await Promise.all([
+    supabase.auth.signOut(),
+    clearCleanerSession(),
+  ]);
+  redirect("/");
 }

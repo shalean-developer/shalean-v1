@@ -14,7 +14,7 @@ export default function BookPage() {
           <p className="text-sm font-semibold uppercase tracking-wide text-emerald-800">Persistent booking flow</p>
           <h1 className="mt-2 text-3xl font-black text-slate-950 sm:text-4xl">Book a Shalean clean</h1>
           <p className="mt-3 max-w-2xl text-slate-600">
-            Nine-step mobile-first flow with saved progress, dynamic pricing, cleaner/team estimation, add-ons, recurring booking support, and production validation.
+            Seven-step mobile-first flow with saved progress, dynamic pricing, cleaner/team estimation, add-ons, recurring booking support, and production validation.
           </p>
         </div>
         <BookingWizardShell />

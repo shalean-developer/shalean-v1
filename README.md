@@ -12,7 +12,8 @@ Scalable Next.js 16 foundation for Shalean's cleaning marketplace in Cape Town.
 
 ## Implemented Foundation
 
-- Customer booking wizard with nine stages, saved progress, dynamic pricing, recurring options, add-ons, and cleaner/team estimation.
+- Customer booking wizard with seven stages, saved progress, dynamic pricing, recurring options, add-ons, and cleaner/team estimation.
+- Regular Cleaning premium upgrade with dedicated add-ons, separate cleaning equipment selection, cleaner profile selection, and multi-cleaner pricing.
 - Shared pricing engine with payout guards that prevent invalid/R0 earnings.
 - Canonical booking lifecycle transition map.
 - Customer, cleaner, and admin dashboard surfaces.
