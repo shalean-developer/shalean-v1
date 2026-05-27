@@ -50,7 +50,7 @@ export function CleanerQuickStats({
   const activeCount = jobs.upcomingJobs.length + jobs.inProgressJobs.length;
 
   return (
-    <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+    <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
       <StatCard icon={<Wallet className="h-4 w-4" />} label="Today earnings" value={formatZar(todaysEarningsCents)} />
       <StatCard icon={<Briefcase className="h-4 w-4" />} label="Offers" value={String(jobs.offers.length)} />
       <StatCard icon={<Clock className="h-4 w-4" />} label="Active jobs" value={String(activeCount)} />
