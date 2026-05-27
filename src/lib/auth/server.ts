@@ -18,10 +18,18 @@ export function isAdminRole(role?: ProfileRow["role"] | string | null) {
 }
 
 export async function getCurrentUser() {
-  const supabase = await createSupabaseServerClient();
-  const result = await supabase.auth.getUser();
+  try {
+    const supabase = await createSupabaseServerClient();
+    const result = await supabase.auth.getUser();
 
-  return result.data.user ?? null;
+    return result.data.user ?? null;
+  } catch (error) {
+    if (isSupabaseConfigError(error)) {
+      return null;
+    }
+
+    throw error;
+  }
 }
 
 export async function getProfileForUser(userId: string) {
@@ -110,8 +118,14 @@ export async function requireCustomer() {
 }
 
 export async function clearCleanerSession() {
-  const supabase = await createSupabaseServerClient();
-  await supabase.auth.signOut();
+  try {
+    const supabase = await createSupabaseServerClient();
+    await supabase.auth.signOut();
+  } catch (error) {
+    if (!isSupabaseConfigError(error)) {
+      throw error;
+    }
+  }
 
   const cookieStore = await cookies();
   cookieStore.delete(cleanerSessionCookie);
@@ -151,30 +165,38 @@ export async function loginCleanerWithPassword(input: { phone: string; password:
 }
 
 export async function getCleanerSession() {
-  const supabase = await createSupabaseServerClient();
-  const userResult = await supabase.auth.getUser();
-  const user = userResult.data.user;
-  if (!user) {
-    return null;
+  try {
+    const supabase = await createSupabaseServerClient();
+    const userResult = await supabase.auth.getUser();
+    const user = userResult.data.user;
+    if (!user) {
+      return null;
+    }
+
+    const admin = createSupabaseAdminClient();
+    const cleanerResult = await admin
+      .from("cleaners")
+      .select("*")
+      .eq("auth_user_id", user.id)
+      .eq("active", true)
+      .maybeSingle();
+
+    if (cleanerResult.error) throw cleanerResult.error;
+    if (!cleanerResult.data) {
+      return null;
+    }
+
+    return {
+      session: user,
+      cleaner: cleanerResult.data as CleanerRow,
+    };
+  } catch (error) {
+    if (isSupabaseConfigError(error)) {
+      return null;
+    }
+
+    throw error;
   }
-
-  const admin = createSupabaseAdminClient();
-  const cleanerResult = await admin
-    .from("cleaners")
-    .select("*")
-    .eq("auth_user_id", user.id)
-    .eq("active", true)
-    .maybeSingle();
-
-  if (cleanerResult.error) throw cleanerResult.error;
-  if (!cleanerResult.data) {
-    return null;
-  }
-
-  return {
-    session: user,
-    cleaner: cleanerResult.data as CleanerRow,
-  };
 }
 
 export async function requireCleanerSession() {
@@ -210,4 +232,13 @@ export async function ensureCustomerProfile(input: {
     email: input.email,
     phone: input.phone,
   });
+}
+
+function isSupabaseConfigError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return error.message.includes("Supabase environment variables are not configured") ||
+    error.message.includes("Supabase admin environment variables are not configured");
 }
