@@ -1,5 +1,5 @@
 import type React from "react";
-import { Bell, Search } from "lucide-react";
+import { Bell, Leaf, Search } from "lucide-react";
 import { AdminRouteNav } from "@/components/admin/AdminRouteNav";
 
 type AdminStats = {
@@ -21,51 +21,53 @@ export function AdminLayoutShell({
   const adminInitial = adminName.trim().charAt(0).toUpperCase() || "A";
 
   return (
-    <main className="min-h-screen bg-[#f3f5f7] px-3 pb-8 pt-4 text-slate-950 sm:px-4 lg:px-6">
-      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
-        <AdminRouteNav stats={stats} />
-        <div className="min-w-0 flex-1 space-y-4">
-          <header className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-5">
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-              <div className="space-y-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Shalean Cleaning Services</p>
-                  <p className="mt-2 text-3xl font-black tracking-tight text-slate-900">Admin workspace</p>
-                  <p className="mt-1 text-sm text-slate-600">Operations control center</p>
-                </div>
-                <div className="w-full max-w-[640px]">
-                  <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                    <Search className="h-4 w-4 text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder="Search bookings, customers, cleaners..."
-                      className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
-                    />
-                  </label>
-                </div>
-              </div>
-              <div className="flex flex-col gap-3 lg:items-end">
-                <div className="flex items-center justify-between gap-3 sm:justify-end">
-                  <button
-                    type="button"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
-                    aria-label="Notifications"
-                  >
-                    <Bell className="h-4 w-4" />
-                  </button>
-                  <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5">
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">
-                      {adminInitial}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-900">{adminName}</p>
-                      <p className="text-xs text-slate-500">Administrator</p>
-                    </div>
-                  </div>
+    <main className="min-h-screen bg-[#f3f5f7] text-slate-950">
+      <header className="w-full border-b border-slate-200 bg-white shadow-sm">
+        <div className="flex w-full flex-col gap-3 px-3 py-3 sm:px-4 lg:flex-row lg:items-center lg:justify-between lg:px-6">
+          <div className="flex items-center gap-2 text-slate-900">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+              <Leaf className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-black uppercase tracking-[0.14em] text-emerald-700">Shalean Cleaning Services</p>
+              <p className="truncate text-xs text-slate-500">Admin workspace</p>
+            </div>
+          </div>
+          <div className="flex w-full flex-1 items-center gap-3 lg:justify-end">
+            <div className="w-full max-w-[560px]">
+              <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <Search className="h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search bookings, customers, cleaners..."
+                  className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+                />
+              </label>
+            </div>
+            <div className="flex shrink-0 items-center gap-3">
+              <button
+                type="button"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
+                aria-label="Notifications"
+              >
+                <Bell className="h-4 w-4" />
+              </button>
+              <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">
+                  {adminInitial}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-slate-900">{adminName}</p>
+                  <p className="text-xs text-slate-500">Administrator</p>
                 </div>
               </div>
             </div>
-          </header>
+          </div>
+        </div>
+      </header>
+      <div className="flex w-full flex-col gap-4 px-3 pb-8 pt-4 sm:px-4 lg:flex-row lg:items-start lg:gap-6 lg:px-6">
+        <AdminRouteNav stats={stats} />
+        <div className="min-w-0 flex-1 space-y-4">
           {children}
         </div>
       </div>
