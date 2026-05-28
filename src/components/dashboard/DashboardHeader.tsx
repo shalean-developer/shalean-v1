@@ -7,9 +7,10 @@ import { cn } from "@/lib/utils";
 type DashboardHeaderProps = {
   active?: "admin" | "customer" | "cleaner";
   theme?: "light" | "dark";
+  sticky?: boolean;
 };
 
-export async function DashboardHeader({ active, theme = "light" }: DashboardHeaderProps) {
+export async function DashboardHeader({ active, theme = "light", sticky = false }: DashboardHeaderProps) {
   const [user, cleanerSession] = await Promise.all([getCurrentUser(), getCleanerSession()]);
   const profile = user ? await getProfileForUser(user.id) : null;
   const dark = theme === "dark";
@@ -24,6 +25,7 @@ export async function DashboardHeader({ active, theme = "light" }: DashboardHead
   return (
     <header className={cn(
       "border-b px-4 py-3 sm:px-6 lg:px-8",
+      sticky ? "sticky top-0 z-50 backdrop-blur supports-[backdrop-filter]:bg-white/90" : "",
       dark ? "border-white/10 bg-slate-950 text-white" : "border-slate-200 bg-white text-slate-950",
     )}>
       <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

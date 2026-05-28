@@ -40,7 +40,7 @@ export function AdminRouteNav({ stats }: { stats: AdminStats }) {
           Menu
         </button>
       </div>
-      <aside className="hidden w-72 shrink-0 lg:block">
+      <aside className="hidden w-72 shrink-0 lg:sticky lg:top-20 lg:block lg:self-start">
         <SidebarBody pathname={pathname} stats={stats} />
       </aside>
       {drawerOpen ? (
@@ -90,7 +90,7 @@ function SidebarBody({
   onNavigate?: () => void;
 }) {
   return (
-    <div className="space-y-4 lg:sticky lg:top-24">
+    <div className="space-y-4">
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Admin workspace</p>
         <p className="mt-2 text-lg font-bold text-slate-900">Operations console</p>
