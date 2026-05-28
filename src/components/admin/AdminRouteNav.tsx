@@ -82,7 +82,7 @@ export function AdminRouteNav({ stats }: { stats: AdminStats }) {
           Menu
         </button>
       </div>
-      <aside className="hidden w-72 shrink-0 lg:block">
+      <aside className="hidden w-72 shrink-0 lg:block lg:h-full lg:overflow-y-auto lg:pr-1">
         <SidebarBody pathname={pathname} stats={stats} />
       </aside>
       {drawerOpen ? (
@@ -132,7 +132,7 @@ function SidebarBody({
   onNavigate?: () => void;
 }) {
   return (
-    <div className="space-y-4 lg:sticky lg:top-4">
+    <div className="space-y-4">
       <nav className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
         <div className="space-y-4">
           {navGroups.map((group) => (
