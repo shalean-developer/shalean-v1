@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ArrowUpRight,
   Banknote,
+  CalendarDays,
   CalendarCheck2,
   CalendarPlus2,
   CircleDollarSign,
@@ -43,16 +44,18 @@ export default async function AdminDashboardPage() {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <section className="py-1">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Dashboard overview</p>
-            <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">Here&apos;s what&apos;s happening today.</h1>
             <p className="mt-2 text-sm text-slate-600">
               Monitor bookings, cleaners, payments, and operational risk in one place.
             </p>
           </div>
-          <Badge className="h-fit border-emerald-200 bg-emerald-50 text-emerald-700">{model.todayDisplay}</Badge>
+          <Badge className="inline-flex h-fit items-center gap-1.5 border-emerald-200 bg-emerald-50 text-emerald-700">
+            <CalendarDays className="h-3.5 w-3.5" />
+            <span>{model.todayDisplay}</span>
+          </Badge>
         </div>
       </section>
 
