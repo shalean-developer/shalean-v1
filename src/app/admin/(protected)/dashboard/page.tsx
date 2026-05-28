@@ -81,35 +81,10 @@ export default async function AdminDashboardPage() {
         <AlertsIssuesCard alerts={model.alerts} />
       </section>
 
-      <section className="grid gap-4 2xl:grid-cols-[1.35fr_1fr]">
+      <section className="grid gap-4 xl:grid-cols-3 xl:items-stretch">
         <RecentActivityCard activity={model.recentActivity} />
         <TopAreasCard areas={model.topAreas} maxAreaCount={model.maxAreaCount} />
-      </section>
-
-      <section>
-        <Card className="border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-lg font-bold">Quick actions</h2>
-            <Badge className="border-slate-200 bg-slate-50 text-slate-700">Operations shortcuts</Badge>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {quickActions.map((action) => {
-              const Icon = action.icon;
-              return (
-                <Link
-                  key={`${action.href}-${action.title}`}
-                  href={action.href}
-                  className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm font-semibold text-slate-800 transition hover:border-emerald-200 hover:bg-emerald-50"
-                >
-                  <span className="rounded-lg border border-emerald-100 bg-white p-2 text-emerald-700">
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  {action.title}
-                </Link>
-              );
-            })}
-          </div>
-        </Card>
+        <QuickActionsCard />
       </section>
     </div>
   );
@@ -521,7 +496,7 @@ function RecentActivityCard({
   }>;
 }) {
   return (
-    <Card className="border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
+    <Card className="h-full border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-lg font-bold">Recent activity</h2>
         <Link href="/admin/bookings" className="text-xs font-semibold text-sky-700 hover:text-sky-800">View all</Link>
@@ -550,7 +525,7 @@ function TopAreasCard({
   maxAreaCount: number;
 }) {
   return (
-    <Card className="border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
+    <Card className="h-full border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-lg font-bold">Top areas this week</h2>
         <Badge className="border-slate-200 bg-slate-50 text-slate-700">Last 7 days</Badge>
@@ -567,6 +542,34 @@ function TopAreasCard({
             </div>
           </div>
         )) : <p className="text-sm text-slate-500">No area data available this week.</p>}
+      </div>
+    </Card>
+  );
+}
+
+function QuickActionsCard() {
+  return (
+    <Card className="h-full border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="text-lg font-bold">Quick actions</h2>
+        <Badge className="border-slate-200 bg-slate-50 text-slate-700">Operations shortcuts</Badge>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {quickActions.map((action) => {
+          const Icon = action.icon;
+          return (
+            <Link
+              key={`${action.href}-${action.title}`}
+              href={action.href}
+              className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm font-semibold text-slate-800 transition hover:border-emerald-200 hover:bg-emerald-50"
+            >
+              <span className="rounded-lg border border-emerald-100 bg-white p-2 text-emerald-700">
+                <Icon className="h-4 w-4" />
+              </span>
+              {action.title}
+            </Link>
+          );
+        })}
       </div>
     </Card>
   );
