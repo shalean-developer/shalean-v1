@@ -14,7 +14,14 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminBookingsPage() {
+type PageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function AdminBookingsPage({ searchParams }: PageProps) {
+  const params = await searchParams;
+  const actionError = getParam(params, "error");
+  const actionSuccess = getParam(params, "success");
   const [management, bookings] = await Promise.all([
     loadAdminManagementData(),
     loadAdminBookings(100),
@@ -66,11 +73,35 @@ export default async function AdminBookingsPage() {
         </Card>
       </section>
       <section className="space-y-4">
+        {actionSuccess === "booking-created" ? (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900">
+            Admin booking created successfully.
+          </div>
+        ) : null}
+        {actionError === "catalog-config" ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+            Regular Cleaning catalog configuration is incomplete. Ensure at least one active bedroom/bathroom pricing rule and at least one active equipment option are configured before creating admin bookings.
+          </div>
+        ) : actionError === "cleaner-unavailable" ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+            Selected cleaner is currently unavailable for this suburb. Choose Auto-assign or select a different cleaner.
+          </div>
+        ) : actionError === "create-failed" ? (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-900">
+            Admin booking could not be created due to a server error. Please verify the form details and try again.
+          </div>
+        ) : null}
+        {!management.hasActivePricingRules ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+            No active Regular Cleaning pricing rules detected. Admin booking creation is disabled until pricing rules are activated.
+          </div>
+        ) : null}
         <AdminBookingCard
           customers={management.customers}
           cleaners={management.cleaners}
           addons={management.addons}
           equipmentOptions={management.equipmentOptions}
+          hasActivePricingRules={management.hasActivePricingRules}
         />
         <div>
           <AdminBookingsDataGrid bookings={bookings} cleaners={management.cleaners} />
@@ -98,4 +129,9 @@ function QuickAction({ href, label }: { href: string; label: string }) {
       {label}
     </Link>
   );
+}
+
+function getParam(params: Awaited<PageProps["searchParams"]>, key: string) {
+  const value = params?.[key];
+  return Array.isArray(value) ? value[0] : value;
 }

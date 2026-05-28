@@ -2,6 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/server";
 import {
   boolValue,
@@ -211,12 +212,12 @@ export async function createAdminBookingAction(formData: FormData) {
     address: requiredString(formData, "address"),
     suburb: requiredString(formData, "suburb"),
     propertyType: requiredString(formData, "propertyType"),
-    bedrooms: intValue(formData, "bedrooms"),
-    bathrooms: intValue(formData, "bathrooms"),
-    extraRooms: intValue(formData, "extraRooms"),
+    bedrooms: clampInt(intValue(formData, "bedrooms"), 0, 12),
+    bathrooms: clampInt(intValue(formData, "bathrooms"), 1, 12),
+    extraRooms: clampInt(intValue(formData, "extraRooms"), 0, 12),
     selectedAddonKeys: formData.getAll("addonKeys").map(String),
     equipmentOptionKey: requiredString(formData, "equipmentOptionKey") as RegularCleaningBookingInput["equipmentOptionKey"],
-    cleanerCount: intValue(formData, "cleanerCount"),
+    cleanerCount: clampInt(intValue(formData, "cleanerCount"), 1, 4),
     selectedCleanerId,
     accessNotes: optionalString(formData, "accessNotes"),
     customer: {
@@ -234,12 +235,17 @@ export async function createAdminBookingAction(formData: FormData) {
     await createRegularCleaningBooking(supabase, bookingInput, customerId);
   } catch (error) {
     if (error instanceof PreferredCleanerUnavailableError) {
-      throw new Error("Selected cleaner is unavailable for that suburb.");
+      redirect("/admin/bookings?error=cleaner-unavailable");
     }
-    throw error;
+    if (error instanceof Error && isRegularCleaningCatalogConfigurationError(error.message)) {
+      redirect("/admin/bookings?error=catalog-config");
+    }
+    console.error("ADMIN_BOOKING_CREATE_FAILED", error);
+    redirect("/admin/bookings?error=create-failed");
   }
 
   revalidateAdmin();
+  redirect("/admin/bookings?success=booking-created");
 }
 
 async function makeCleanerEligibleForAdminBooking(
@@ -356,4 +362,13 @@ function revalidateAdmin() {
   revalidatePath("/admin/bookings");
   revalidatePath("/admin/payments");
   revalidatePath("/admin/settings");
+}
+
+function isRegularCleaningCatalogConfigurationError(message: string) {
+  return message === "Regular Cleaning bedroom/bathroom pricing is not configured" ||
+    message === "Regular Cleaning equipment options are not configured";
+}
+
+function clampInt(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }

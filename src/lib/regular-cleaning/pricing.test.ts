@@ -131,4 +131,14 @@ describe("Regular Cleaning pricing", () => {
       extraCleanersTotalCents: 18000,
     });
   });
+
+  it("throws a configuration error when no active pricing rules exist", () => {
+    const emptyPricingCatalog: RegularCleaningCatalog = {
+      ...catalog,
+      pricingRules: [],
+    };
+
+    expect(() => calculateRegularCleaningPrice(input, emptyPricingCatalog))
+      .toThrow("Regular Cleaning bedroom/bathroom pricing is not configured");
+  });
 });

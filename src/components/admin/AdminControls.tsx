@@ -170,11 +170,13 @@ export function AdminBookingCard({
   cleaners,
   addons,
   equipmentOptions,
+  hasActivePricingRules,
 }: {
   customers: CustomerRow[];
   cleaners: CleanerRow[];
   addons: AddonRow[];
   equipmentOptions: EquipmentRow[];
+  hasActivePricingRules: boolean;
 }) {
   return (
     <AdminBookingWizardCard
@@ -183,6 +185,7 @@ export function AdminBookingCard({
       cleaners={cleaners}
       addons={addons}
       equipmentOptions={equipmentOptions}
+      hasActivePricingRules={hasActivePricingRules}
     />
   );
 }
