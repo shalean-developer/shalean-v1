@@ -63,3 +63,14 @@ export function weekdayFromDate(date: string) {
   const day = new Date(`${date}T00:00:00`).getDay();
   return [day === 0 ? 7 : day];
 }
+
+export function weekdayList(formData: FormData, key: string) {
+  return Array.from(
+    new Set(
+      formData
+        .getAll(key)
+        .map((value) => Number(String(value)))
+        .filter((value) => Number.isInteger(value) && value >= 1 && value <= 7),
+    ),
+  ).sort((a, b) => a - b);
+}

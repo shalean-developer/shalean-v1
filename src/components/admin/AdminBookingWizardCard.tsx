@@ -4,6 +4,8 @@ import type React from "react";
 import { useMemo, useRef, useState } from "react";
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import type { AddonRow, CleanerRow, CustomerRow, EquipmentRow } from "@/lib/admin/data";
+import { weekdayFromDate } from "@/lib/admin/utils";
+import { formatRecurrenceSummary, WEEKDAYS } from "@/lib/regular-cleaning/recurrence";
 import { cn, formatZar } from "@/lib/utils";
 
 const wizardSteps = [
@@ -14,6 +16,7 @@ const wizardSteps = [
   "Assignment & summary",
 ] as const;
 const AUTO_ASSIGN_SENTINEL = "__auto_assign__";
+type AdminFrequency = "once" | "weekly" | "fortnightly" | "monthly";
 
 export function AdminBookingWizardCard({
   action,
@@ -34,7 +37,9 @@ export function AdminBookingWizardCard({
   const [customerId, setCustomerId] = useState(customers[0]?.id ?? "");
   const [bookingDate, setBookingDate] = useState("");
   const [bookingTime, setBookingTime] = useState("08:00-12:00");
-  const [frequency, setFrequency] = useState("once");
+  const [frequency, setFrequency] = useState<AdminFrequency>("once");
+  const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>([]);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [address, setAddress] = useState("");
   const [suburb, setSuburb] = useState("");
   const [propertyType, setPropertyType] = useState("apartment");
@@ -88,6 +93,31 @@ export function AdminBookingWizardCard({
     });
   }
 
+  function handleBookingDateChange(value: string) {
+    setBookingDate(value);
+
+    if ((frequency === "weekly" || frequency === "fortnightly") && selectedWeekdays.length === 0 && value) {
+      setSelectedWeekdays(weekdayFromDate(value));
+    }
+  }
+
+  function handleFrequencyChange(nextFrequency: AdminFrequency) {
+    setFrequency(nextFrequency);
+    setScheduleError(null);
+
+    if ((nextFrequency === "weekly" || nextFrequency === "fortnightly") && selectedWeekdays.length === 0 && bookingDate) {
+      setSelectedWeekdays(weekdayFromDate(bookingDate));
+    }
+  }
+
+  function toggleWeekday(weekday: number, checked: boolean) {
+    setSelectedWeekdays((current) => {
+      const next = checked ? [...current, weekday] : current.filter((day) => day !== weekday);
+      return Array.from(new Set(next)).sort((a, b) => a - b);
+    });
+    setScheduleError(null);
+  }
+
   function isCurrentStepValid(stepIndex: number) {
     const currentStep = fieldsetsRef.current[stepIndex];
     if (!currentStep) {
@@ -104,6 +134,13 @@ export function AdminBookingWizardCard({
         return false;
       }
     }
+
+    if (stepIndex === 1 && (frequency === "weekly" || frequency === "fortnightly") && selectedWeekdays.length === 0) {
+      setScheduleError("Select at least one recurring weekday.");
+      return false;
+    }
+
+    setScheduleError(null);
 
     return true;
   }
@@ -157,9 +194,9 @@ export function AdminBookingWizardCard({
           }}
           className={cn(step === 1 ? "space-y-4" : "hidden")}
         >
-          <WizardGroup title="Step 2 · Schedule" description="Set date, time window, and frequency.">
+          <WizardGroup title="Step 2 · Schedule" description="Set date, time window, frequency, and recurring weekdays when needed.">
             <div className="grid gap-3 lg:grid-cols-3">
-              <WizardInput label="Booking date" name="bookingDate" type="date" required value={bookingDate} onChange={setBookingDate} />
+              <WizardInput label="Booking date" name="bookingDate" type="date" required value={bookingDate} onChange={handleBookingDateChange} />
               <WizardSelect
                 label="Time window"
                 name="bookingTime"
@@ -177,7 +214,7 @@ export function AdminBookingWizardCard({
                 name="frequency"
                 required
                 value={frequency}
-                onChange={setFrequency}
+                onChange={(value) => handleFrequencyChange(value as AdminFrequency)}
                 options={[
                   { value: "once", label: "Once" },
                   { value: "weekly", label: "Weekly" },
@@ -186,6 +223,10 @@ export function AdminBookingWizardCard({
                 ]}
               />
             </div>
+            {frequency === "weekly" || frequency === "fortnightly" ? (
+              <WizardWeekdaySelector selectedWeekdays={selectedWeekdays} onToggle={toggleWeekday} />
+            ) : null}
+            {scheduleError ? <p className="text-sm font-semibold text-rose-700">{scheduleError}</p> : null}
           </WizardGroup>
         </fieldset>
 
@@ -304,7 +345,10 @@ export function AdminBookingWizardCard({
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Summary</p>
               <dl className="mt-3 grid gap-3 sm:grid-cols-2">
                 <SummaryLine label="Customer" value={selectedCustomer ? `${selectedCustomer.full_name} (${selectedCustomer.email})` : "Not selected"} />
-                <SummaryLine label="Schedule" value={bookingDate ? `${bookingDate} • ${bookingTime} • ${frequency}` : "Not selected"} />
+                <SummaryLine
+                  label="Schedule"
+                  value={bookingDate ? `${bookingDate} • ${bookingTime} • ${formatRecurrenceSummary(frequency, selectedWeekdays)}` : "Not selected"}
+                />
                 <SummaryLine label="Property" value={address && suburb ? `${address}, ${suburb} (${propertyType})` : "Not complete"} />
                 <SummaryLine label="Rooms" value={`${bedrooms} bed / ${bathrooms} bath / ${extraRooms} extra`} />
                 <SummaryLine label="Equipment" value={selectedEquipment ? `${selectedEquipment.label} (${formatZar(selectedEquipment.price_cents)})` : "Not selected"} />
@@ -418,6 +462,45 @@ function WizardSelect({
         ))}
       </select>
     </label>
+  );
+}
+
+function WizardWeekdaySelector({
+  selectedWeekdays,
+  onToggle,
+}: {
+  selectedWeekdays: number[];
+  onToggle: (weekday: number, checked: boolean) => void;
+}) {
+  return (
+    <div>
+      <span className="text-sm font-semibold text-slate-700">Recurring weekdays</span>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {WEEKDAYS.map((weekday) => {
+          const checked = selectedWeekdays.includes(weekday.value);
+
+          return (
+            <label
+              key={weekday.value}
+              className={cn(
+                "inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold transition",
+                checked ? "border-emerald-700 bg-emerald-700 text-white" : "border-slate-200 bg-white text-slate-600",
+              )}
+            >
+              <input
+                className="sr-only"
+                name="recurrenceWeekdays"
+                type="checkbox"
+                value={String(weekday.value)}
+                checked={checked}
+                onChange={(event) => onToggle(weekday.value, event.target.checked)}
+              />
+              {weekday.shortLabel}
+            </label>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

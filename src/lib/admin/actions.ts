@@ -14,6 +14,7 @@ import {
   requiredString,
   validateEmail,
   validatePhone,
+  weekdayList,
   weekdayFromDate,
 } from "@/lib/admin/utils";
 import { upsertCustomerIdentity } from "@/lib/customers/identity";
@@ -202,6 +203,7 @@ export async function createAdminBookingAction(formData: FormData) {
 
   const frequency = requiredString(formData, "frequency") as RegularCleaningBookingInput["frequency"];
   const bookingDate = requiredString(formData, "bookingDate");
+  const selectedWeekdays = weekdayList(formData, "recurrenceWeekdays");
   const selectedCleanerChoice = optionalString(formData, "selectedCleanerId");
   if (!selectedCleanerChoice) {
     redirect("/admin/bookings?error=assignment-required");
@@ -211,7 +213,11 @@ export async function createAdminBookingAction(formData: FormData) {
     checkoutId: randomUUID(),
     serviceSlug: REGULAR_CLEANING_SLUG,
     frequency,
-    recurrenceWeekdays: frequency === "monthly" ? [] : weekdayFromDate(bookingDate),
+    recurrenceWeekdays: frequency === "monthly"
+      ? []
+      : selectedWeekdays.length > 0
+        ? selectedWeekdays
+        : weekdayFromDate(bookingDate),
     bookingDate,
     bookingTime: requiredString(formData, "bookingTime"),
     address: requiredString(formData, "address"),
