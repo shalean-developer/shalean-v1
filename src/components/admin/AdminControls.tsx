@@ -20,7 +20,7 @@ import { formatZar, slugToTitle } from "@/lib/utils";
 
 export function CreateCleanerCard() {
   return (
-    <Card className="border-white/10 bg-white p-5 text-slate-950">
+    <Card className="border-slate-200 bg-white p-5 text-slate-950">
       <h2 className="text-xl font-bold">Create cleaner</h2>
       <form action={createCleanerAction} className="mt-4 grid gap-3">
         <AdminInput label="Full name" name="fullName" required />
@@ -40,7 +40,7 @@ export function CreateCleanerCard() {
 
 export function CleanerManagement({ cleaners }: { cleaners: CleanerRow[] }) {
   return (
-    <Card className="border-white/10 bg-white p-5 text-slate-950">
+    <Card className="border-slate-200 bg-white p-5 text-slate-950">
       <h2 className="text-xl font-bold">Cleaner accounts</h2>
       <div className="mt-4 grid gap-3">
         {cleaners.map((cleaner) => {
@@ -103,7 +103,7 @@ export function CleanerManagement({ cleaners }: { cleaners: CleanerRow[] }) {
 
 export function CustomerFormCard() {
   return (
-    <Card className="border-white/10 bg-white p-5 text-slate-950">
+    <Card className="border-slate-200 bg-white p-5 text-slate-950">
       <h2 className="text-xl font-bold">Create customer</h2>
       <form action={createCustomerAction} className="mt-4 grid gap-3">
         <AdminInput label="Full name" name="fullName" required />
@@ -124,7 +124,7 @@ export function CustomerFormCard() {
 
 export function CustomerManagement({ customers }: { customers: CustomerRow[] }) {
   return (
-    <Card className="border-white/10 bg-white p-5 text-slate-950">
+    <Card className="border-slate-200 bg-white p-5 text-slate-950">
       <h2 className="text-xl font-bold">Customer profiles</h2>
       <div className="mt-4 grid gap-3">
         {customers.map((customer) => (
@@ -204,7 +204,7 @@ export function PaymentSection({
   ];
 
   return (
-    <Card className="border-white/10 bg-white p-5 text-slate-950">
+    <Card className="border-slate-200 bg-white p-5 text-slate-950">
       <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
         <div className="rounded-md bg-slate-50 p-4">
           <p className="text-xs font-semibold uppercase text-slate-500">Payout ready</p>
@@ -261,7 +261,7 @@ export function SettingsSection({
 
   return (
     <div className="grid gap-4 xl:grid-cols-[360px_1fr]">
-      <Card className="border-white/10 bg-white p-5 text-slate-950">
+      <Card className="border-slate-200 bg-white p-5 text-slate-950">
         <h3 className="text-xl font-bold">Access policy</h3>
         <div className="mt-4 grid gap-3 text-sm">
           <SettingRow label="Current admin" value={`${adminName}${adminEmail ? ` (${adminEmail})` : ""}`} />
@@ -282,7 +282,7 @@ export function SettingsSection({
           </div>
         )}
       </Card>
-      <Card className="border-white/10 bg-white p-5 text-slate-950">
+      <Card className="border-slate-200 bg-white p-5 text-slate-950">
         <h3 className="text-xl font-bold">Lifecycle engine</h3>
         <div className="mt-4 grid gap-3 text-sm md:grid-cols-2">
           {Object.entries(bookingTransitions).map(([from, to]) => (

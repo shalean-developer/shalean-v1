@@ -29,9 +29,9 @@ export default async function AdminBookingsPage() {
         Create bookings for existing customers and review bookings created from both customer checkout and admin-assisted flows.
       </AdminPageHeading>
       <section className="grid gap-4 xl:grid-cols-3">
-        <Card className="border-white/10 bg-white/[0.03] p-5 text-white">
+        <Card className="border-slate-200 bg-white p-5 text-slate-900">
           <div className="flex items-center gap-2">
-            <CalendarCheck2 className="h-4 w-4 text-emerald-300" />
+            <CalendarCheck2 className="h-4 w-4 text-emerald-700" />
             <h3 className="text-lg font-bold">Operations overview</h3>
           </div>
           <div className="mt-4 space-y-2 text-sm">
@@ -41,9 +41,9 @@ export default async function AdminBookingsPage() {
             <MetricItem label="Revenue in view" value={formatZar(revenueCents)} />
           </div>
         </Card>
-        <Card className="border-white/10 bg-white/[0.03] p-5 text-white">
+        <Card className="border-slate-200 bg-white p-5 text-slate-900">
           <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-sky-300" />
+            <Users className="h-4 w-4 text-sky-700" />
             <h3 className="text-lg font-bold">Quick actions</h3>
           </div>
           <div className="mt-4 space-y-2 text-sm">
@@ -53,16 +53,16 @@ export default async function AdminBookingsPage() {
             <QuickAction href="/admin/settings" label="Review admin settings" />
           </div>
         </Card>
-        <Card className="border-white/10 bg-white/[0.03] p-5 text-white">
+        <Card className="border-slate-200 bg-white p-5 text-slate-900">
           <div className="flex items-center gap-2">
-            <Settings2 className="h-4 w-4 text-violet-300" />
+            <Settings2 className="h-4 w-4 text-violet-700" />
             <h3 className="text-lg font-bold">Booking management</h3>
           </div>
-          <p className="mt-3 text-sm text-slate-300">
+          <p className="mt-3 text-sm text-slate-600">
             Service: {bookings[0] ? slugToTitle(bookings[0].service_slug) : "Regular cleaning"}
           </p>
-          <p className="mt-1 text-sm text-slate-300">Total cleaners in system: {management.cleaners.length}</p>
-          <p className="mt-1 text-sm text-slate-300">Total customers in system: {management.customers.length}</p>
+          <p className="mt-1 text-sm text-slate-600">Total cleaners in system: {management.cleaners.length}</p>
+          <p className="mt-1 text-sm text-slate-600">Total customers in system: {management.customers.length}</p>
         </Card>
       </section>
       <section className="space-y-4">
@@ -82,9 +82,9 @@ export default async function AdminBookingsPage() {
 
 function MetricItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2">
-      <span className="text-slate-300">{label}</span>
-      <span className="font-semibold text-white">{value}</span>
+    <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+      <span className="text-slate-600">{label}</span>
+      <span className="font-semibold text-slate-900">{value}</span>
     </div>
   );
 }
@@ -93,7 +93,7 @@ function QuickAction({ href, label }: { href: string; label: string }) {
   return (
     <Link
       href={href}
-      className="block rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 font-semibold text-slate-100 transition hover:border-white/20 hover:bg-white/[0.06]"
+      className="block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-semibold text-slate-800 transition hover:border-slate-300 hover:bg-slate-100"
     >
       {label}
     </Link>

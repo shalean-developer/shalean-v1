@@ -70,26 +70,26 @@ export function AdminBookingsDataGrid({
   const paginatedBookings = filteredBookings.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-white sm:p-6">
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 sm:p-6">
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h3 className="text-xl font-bold">Recent bookings</h3>
-          <p className="mt-1 text-sm text-slate-300">
+          <p className="mt-1 text-sm text-slate-600">
             Includes bookings created through customer checkout and admin booking creation.
           </p>
         </div>
-        <div className="text-sm text-slate-300">
+        <div className="text-sm text-slate-600">
           Showing {paginatedBookings.length} of {filteredBookings.length} filtered bookings
         </div>
       </div>
 
-      <div className="grid gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2 xl:grid-cols-5">
         <label className="xl:col-span-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Search</span>
-          <div className="mt-2 flex items-center rounded-md border border-white/15 bg-slate-900/70 px-3">
+          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Search</span>
+          <div className="mt-2 flex items-center rounded-md border border-slate-300 bg-white px-3">
             <Search className="h-4 w-4 text-slate-400" />
             <input
-              className="min-h-10 w-full bg-transparent px-2 text-sm text-slate-100 outline-none"
+              className="min-h-10 w-full bg-transparent px-2 text-sm text-slate-900 outline-none"
               placeholder="Customer, address, suburb, booking ID"
               value={search}
               onChange={(event) => {
@@ -138,7 +138,7 @@ export function AdminBookingsDataGrid({
         <label>
           <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Date</span>
           <input
-            className="mt-2 min-h-10 w-full rounded-md border border-white/15 bg-slate-900/70 px-3 text-sm text-slate-100 outline-none focus:border-emerald-400"
+            className="mt-2 min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-500"
             type="date"
             value={dateFilter}
             onChange={(event) => {
@@ -150,9 +150,9 @@ export function AdminBookingsDataGrid({
       </div>
 
       <div className="mt-4 hidden md:block">
-        <div className="max-h-[540px] overflow-auto rounded-xl border border-white/10">
+        <div className="max-h-[540px] overflow-auto rounded-xl border border-slate-200">
           <table className="min-w-full text-sm">
-            <thead className="sticky top-0 z-10 bg-slate-900/95 text-xs uppercase tracking-[0.12em] text-slate-300">
+            <thead className="sticky top-0 z-10 bg-slate-100 text-xs uppercase tracking-[0.12em] text-slate-600">
               <tr>
                 <th className="px-4 py-3 text-left font-semibold">Customer & location</th>
                 <th className="px-4 py-3 text-left font-semibold">Schedule</th>
@@ -162,24 +162,24 @@ export function AdminBookingsDataGrid({
                 <th className="px-4 py-3 text-left font-semibold">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/10">
+            <tbody className="divide-y divide-slate-200">
               {paginatedBookings.length > 0 ? paginatedBookings.map((booking) => {
                 const cleanerName = booking.selected_cleaner_id ? cleanersById.get(booking.selected_cleaner_id) ?? "Cleaner unavailable" : "Auto-assign";
                 const paymentStatus = booking.payment?.status ?? booking.payment_status;
 
                 return (
-                  <tr key={booking.id} className="bg-transparent transition hover:bg-white/[0.04]">
+                  <tr key={booking.id} className="bg-transparent transition hover:bg-slate-50">
                     <td className="px-4 py-3">
-                      <p className="font-semibold text-slate-100">{booking.customer?.full_name ?? "Customer unavailable"}</p>
-                      <p className="mt-1 text-xs text-slate-400">{booking.address}, {booking.suburb}</p>
+                      <p className="font-semibold text-slate-900">{booking.customer?.full_name ?? "Customer unavailable"}</p>
+                      <p className="mt-1 text-xs text-slate-500">{booking.address}, {booking.suburb}</p>
                     </td>
-                    <td className="px-4 py-3 text-slate-200">
+                    <td className="px-4 py-3 text-slate-700">
                       <p>{booking.booking_date}</p>
-                      <p className="text-xs text-slate-400">{booking.booking_time}</p>
+                      <p className="text-xs text-slate-500">{booking.booking_time}</p>
                     </td>
-                    <td className="px-4 py-3 text-slate-200">{slugToTitle(booking.service_slug)}</td>
-                    <td className="px-4 py-3 text-slate-200">{cleanerName}</td>
-                    <td className="px-4 py-3 font-semibold text-slate-100">{formatZar(booking.final_total_cents)}</td>
+                    <td className="px-4 py-3 text-slate-700">{slugToTitle(booking.service_slug)}</td>
+                    <td className="px-4 py-3 text-slate-700">{cleanerName}</td>
+                    <td className="px-4 py-3 font-semibold text-slate-900">{formatZar(booking.final_total_cents)}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1.5">
                         <StatusPill value={booking.booking_status} tone="booking" />
@@ -190,7 +190,7 @@ export function AdminBookingsDataGrid({
                 );
               }) : (
                 <tr>
-                  <td className="px-4 py-8 text-center text-sm text-slate-400" colSpan={6}>No bookings match these filters.</td>
+                  <td className="px-4 py-8 text-center text-sm text-slate-500" colSpan={6}>No bookings match these filters.</td>
                 </tr>
               )}
             </tbody>
@@ -204,15 +204,15 @@ export function AdminBookingsDataGrid({
           const paymentStatus = booking.payment?.status ?? booking.payment_status;
 
           return (
-            <article key={booking.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+            <article key={booking.id} className="rounded-xl border border-slate-200 bg-white p-4">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="font-semibold text-slate-100">{booking.customer?.full_name ?? "Customer unavailable"}</p>
-                  <p className="mt-1 text-xs text-slate-400">{booking.address}, {booking.suburb}</p>
+                  <p className="font-semibold text-slate-900">{booking.customer?.full_name ?? "Customer unavailable"}</p>
+                  <p className="mt-1 text-xs text-slate-500">{booking.address}, {booking.suburb}</p>
                 </div>
-                <p className="text-sm font-semibold text-slate-100">{formatZar(booking.final_total_cents)}</p>
+                <p className="text-sm font-semibold text-slate-900">{formatZar(booking.final_total_cents)}</p>
               </div>
-              <div className="mt-3 grid gap-1 text-xs text-slate-300">
+              <div className="mt-3 grid gap-1 text-xs text-slate-600">
                 <p>{booking.booking_date} • {booking.booking_time}</p>
                 <p>{slugToTitle(booking.service_slug)} • {cleanerName}</p>
               </div>
@@ -222,14 +222,14 @@ export function AdminBookingsDataGrid({
               </div>
             </article>
           );
-        }) : <p className="text-sm text-slate-400">No bookings match these filters.</p>}
+        }) : <p className="text-sm text-slate-500">No bookings match these filters.</p>}
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
-        <p className="text-sm text-slate-300">Page {currentPage} of {totalPages}</p>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+        <p className="text-sm text-slate-600">Page {currentPage} of {totalPages}</p>
         <div className="flex items-center gap-2">
           <button
-            className="rounded-md border border-white/20 px-3 py-1.5 text-sm font-semibold text-slate-100 transition hover:bg-white/10 disabled:opacity-40"
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-40"
             type="button"
             onClick={() => setPage((current) => Math.max(1, Math.min(totalPages, current) - 1))}
             disabled={currentPage === 1}
@@ -237,7 +237,7 @@ export function AdminBookingsDataGrid({
             Previous
           </button>
           <button
-            className="rounded-md border border-white/20 px-3 py-1.5 text-sm font-semibold text-slate-100 transition hover:bg-white/10 disabled:opacity-40"
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-40"
             type="button"
             onClick={() => setPage((current) => Math.min(totalPages, Math.min(totalPages, current) + 1))}
             disabled={currentPage === totalPages}
@@ -265,9 +265,9 @@ function FilterSelect({
 }) {
   return (
     <label>
-      <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">{label}</span>
+      <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</span>
       <select
-        className="mt-2 min-h-10 w-full rounded-md border border-white/15 bg-slate-900/70 px-3 text-sm text-slate-100 outline-none focus:border-emerald-400"
+        className="mt-2 min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-500"
         value={value}
         onChange={(event) => onChange(event.target.value)}
       >
@@ -283,17 +283,17 @@ function FilterSelect({
 
 function StatusPill({ value, tone }: { value: string; tone: "booking" | "payment" }) {
   const base = tone === "booking"
-    ? "border-sky-400/40 bg-sky-500/10 text-sky-200"
-    : "border-emerald-400/40 bg-emerald-500/10 text-emerald-200";
+    ? "border-sky-200 bg-sky-50 text-sky-700"
+    : "border-emerald-200 bg-emerald-50 text-emerald-700";
   const cancelled = value === "cancelled" || value === "refunded";
   const pending = value === "pending" || value === "offered" || value === "awaiting_payment";
 
   return (
     <Badge
       className={cancelled
-        ? "border-rose-400/40 bg-rose-500/10 text-rose-200"
+        ? "border-rose-200 bg-rose-50 text-rose-700"
         : pending
-          ? "border-amber-400/40 bg-amber-500/10 text-amber-200"
+          ? "border-amber-200 bg-amber-50 text-amber-700"
           : base}
     >
       {slugToTitle(value)}

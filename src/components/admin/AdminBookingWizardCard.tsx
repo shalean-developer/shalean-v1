@@ -85,7 +85,7 @@ export function AdminBookingWizardCard({
   }
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-white sm:p-6">
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 sm:p-6">
       <div className="flex flex-wrap gap-2">
         {wizardSteps.map((label, index) => (
           <button
@@ -93,10 +93,10 @@ export function AdminBookingWizardCard({
             className={cn(
               "inline-flex h-9 items-center gap-1 rounded-full border px-3 text-xs font-semibold transition",
               index === step
-                ? "border-emerald-300/70 bg-emerald-500/20 text-emerald-100"
+                ? "border-emerald-600 bg-emerald-50 text-emerald-800"
                 : index < step
-                  ? "border-white/25 bg-white/10 text-slate-100"
-                  : "border-white/15 bg-transparent text-slate-400",
+                  ? "border-slate-300 bg-slate-100 text-slate-700"
+                  : "border-slate-200 bg-transparent text-slate-400",
             )}
             type="button"
             disabled={index > step}
@@ -220,7 +220,7 @@ export function AdminBookingWizardCard({
                 {addons.map((addon) => {
                   const checked = selectedAddons.includes(addon.key);
                   return (
-                    <label key={addon.key} className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-slate-200">
+                    <label key={addon.key} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
                       <input
                         name="addonKeys"
                         type="checkbox"
@@ -234,7 +234,7 @@ export function AdminBookingWizardCard({
                 })}
               </div>
             ) : (
-              <p className="text-sm text-slate-300">No active add-ons configured for this service.</p>
+              <p className="text-sm text-slate-600">No active add-ons configured for this service.</p>
             )}
           </WizardGroup>
         </fieldset>
@@ -261,16 +261,16 @@ export function AdminBookingWizardCard({
                 ]}
               />
               <label>
-                <span className="text-sm font-semibold text-slate-200">Access notes</span>
+                <span className="text-sm font-semibold text-slate-700">Access notes</span>
                 <textarea
-                  className="mt-2 min-h-24 w-full rounded-md border border-white/20 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400"
+                  className="mt-2 min-h-24 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-500"
                   name="accessNotes"
                 />
               </label>
             </div>
 
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-200">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Summary</p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Summary</p>
               <dl className="mt-3 grid gap-3 sm:grid-cols-2">
                 <SummaryLine label="Customer" value={selectedCustomer ? `${selectedCustomer.full_name} (${selectedCustomer.email})` : "Not selected"} />
                 <SummaryLine label="Schedule" value={bookingDate ? `${bookingDate} • ${bookingTime} • ${frequency}` : "Not selected"} />
@@ -288,9 +288,9 @@ export function AdminBookingWizardCard({
           </WizardGroup>
         </fieldset>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
           <button
-            className="inline-flex items-center gap-2 rounded-md border border-white/20 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-white/10 disabled:opacity-40"
+            className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-40"
             type="button"
             onClick={previousStep}
             disabled={step === 0}
@@ -320,10 +320,10 @@ export function AdminBookingWizardCard({
 
 function WizardGroup({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-4 rounded-xl border border-white/10 bg-white/[0.02] p-4 sm:p-5">
+    <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
       <div>
-        <h3 className="text-base font-bold text-white">{title}</h3>
-        <p className="mt-1 text-sm text-slate-300">{description}</p>
+        <h3 className="text-base font-bold text-slate-950">{title}</h3>
+        <p className="mt-1 text-sm text-slate-600">{description}</p>
       </div>
       {children}
     </div>
@@ -342,9 +342,9 @@ function WizardInput({
 }) {
   return (
     <label>
-      <span className="text-sm font-semibold text-slate-200">{label}</span>
+      <span className="text-sm font-semibold text-slate-700">{label}</span>
       <input
-        className="mt-2 min-h-11 w-full rounded-md border border-white/20 bg-slate-900/70 px-3 text-sm text-slate-100 outline-none focus:border-emerald-400"
+        className="mt-2 min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-500"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         {...props}
@@ -367,9 +367,9 @@ function WizardSelect({
 }) {
   return (
     <label>
-      <span className="text-sm font-semibold text-slate-200">{label}</span>
+      <span className="text-sm font-semibold text-slate-700">{label}</span>
       <select
-        className="mt-2 min-h-11 w-full rounded-md border border-white/20 bg-slate-900/70 px-3 text-sm text-slate-100 outline-none focus:border-emerald-400"
+        className="mt-2 min-h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-emerald-500"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         {...props}
@@ -384,9 +384,9 @@ function WizardSelect({
 
 function SummaryLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2">
-      <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">{label}</dt>
-      <dd className="mt-1 text-sm text-slate-100">{value}</dd>
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+      <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</dt>
+      <dd className="mt-1 text-sm text-slate-900">{value}</dd>
     </div>
   );
 }
