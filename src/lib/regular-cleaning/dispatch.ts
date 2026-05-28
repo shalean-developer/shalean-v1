@@ -173,7 +173,7 @@ async function markAdminReassignment(
 }
 
 export function isCleanerEligibleForBooking(
-  cleaner: Pick<CleanerRow, "active" | "available" | "service_slugs" | "suburbs">,
+  cleaner: Pick<CleanerRow, "id" | "active" | "available" | "service_slugs" | "suburbs">,
   booking: Pick<BookingRow, "suburb" | "booking_date" | "booking_time">,
   availabilityContext?: DispatchAvailabilityContext,
 ) {
@@ -253,6 +253,9 @@ async function loadDispatchAvailabilityContext(
 
   for (const row of busyRows) {
     if (excludedBookingIds.includes(row.booking_id)) {
+      continue;
+    }
+    if (!row.cleaner_id) {
       continue;
     }
     const booking = busyBookingsById.get(row.booking_id);
