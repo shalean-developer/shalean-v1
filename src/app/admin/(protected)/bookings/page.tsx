@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { CalendarCheck2, Settings2, Users } from "lucide-react";
 import { AdminPageHeading } from "@/components/admin/AdminLayoutShell";
 import { AdminBookingCard } from "@/components/admin/AdminControls";
+import { AdminBookingsDataGrid } from "@/components/admin/AdminBookingsDataGrid";
 import { Card } from "@/components/ui/card";
 import { loadAdminBookings, loadAdminManagementData } from "@/lib/admin/data";
 import { formatZar, slugToTitle } from "@/lib/utils";
@@ -16,12 +19,52 @@ export default async function AdminBookingsPage() {
     loadAdminManagementData(),
     loadAdminBookings(100),
   ]);
+  const pendingAssignment = bookings.filter((booking) => booking.booking_status === "confirmed" && booking.payment_status === "paid" && !booking.selected_cleaner_id).length;
+  const paidCount = bookings.filter((booking) => (booking.payment?.status ?? booking.payment_status) === "paid").length;
+  const revenueCents = bookings.reduce((total, booking) => total + booking.final_total_cents, 0);
 
   return (
-    <>
+    <div className="space-y-5">
       <AdminPageHeading eyebrow="Booking section" title="Bookings and assignment">
         Create bookings for existing customers and review bookings created from both customer checkout and admin-assisted flows.
       </AdminPageHeading>
+      <section className="grid gap-4 xl:grid-cols-3">
+        <Card className="border-white/10 bg-white/[0.03] p-5 text-white">
+          <div className="flex items-center gap-2">
+            <CalendarCheck2 className="h-4 w-4 text-emerald-300" />
+            <h3 className="text-lg font-bold">Operations overview</h3>
+          </div>
+          <div className="mt-4 space-y-2 text-sm">
+            <MetricItem label="Recent bookings loaded" value={String(bookings.length)} />
+            <MetricItem label="Pending assignment" value={String(pendingAssignment)} />
+            <MetricItem label="Paid bookings" value={String(paidCount)} />
+            <MetricItem label="Revenue in view" value={formatZar(revenueCents)} />
+          </div>
+        </Card>
+        <Card className="border-white/10 bg-white/[0.03] p-5 text-white">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-sky-300" />
+            <h3 className="text-lg font-bold">Quick actions</h3>
+          </div>
+          <div className="mt-4 space-y-2 text-sm">
+            <QuickAction href="/admin/customers" label="Open customer records" />
+            <QuickAction href="/admin/cleaners" label="Open cleaner assignments" />
+            <QuickAction href="/admin/payments" label="Review payments" />
+            <QuickAction href="/admin/settings" label="Review admin settings" />
+          </div>
+        </Card>
+        <Card className="border-white/10 bg-white/[0.03] p-5 text-white">
+          <div className="flex items-center gap-2">
+            <Settings2 className="h-4 w-4 text-violet-300" />
+            <h3 className="text-lg font-bold">Booking management</h3>
+          </div>
+          <p className="mt-3 text-sm text-slate-300">
+            Service: {bookings[0] ? slugToTitle(bookings[0].service_slug) : "Regular cleaning"}
+          </p>
+          <p className="mt-1 text-sm text-slate-300">Total cleaners in system: {management.cleaners.length}</p>
+          <p className="mt-1 text-sm text-slate-300">Total customers in system: {management.customers.length}</p>
+        </Card>
+      </section>
       <section className="space-y-4">
         <AdminBookingCard
           customers={management.customers}
@@ -29,40 +72,30 @@ export default async function AdminBookingsPage() {
           addons={management.addons}
           equipmentOptions={management.equipmentOptions}
         />
-        <Card className="border-white/10 bg-white p-5 text-slate-950">
-          <h2 className="text-xl font-bold">Recent bookings</h2>
-          <p className="mt-1 text-sm text-slate-600">
-            Includes bookings created through customer checkout and admin booking creation.
-          </p>
-          <div className="mt-4 grid gap-3">
-            {bookings.length > 0 ? bookings.map((booking) => (
-              <div
-                key={booking.id}
-                className="grid gap-2 rounded-md bg-slate-50 p-3 text-sm sm:grid-cols-[1.4fr_1fr_1fr_auto] sm:items-center"
-              >
-                <div>
-                  <p className="font-semibold text-slate-950">{booking.customer?.full_name ?? "Customer unavailable"}</p>
-                  <p className="mt-1 text-slate-600">{booking.address}, {booking.suburb}</p>
-                  <p className="mt-1 text-slate-600">
-                    {booking.booking_date} {booking.booking_time}
-                  </p>
-                </div>
-                <div>
-                  <p className="font-semibold text-slate-950">{slugToTitle(booking.service_slug)}</p>
-                  <p className="mt-1 text-slate-600">{booking.cleaner_count} cleaner{booking.cleaner_count === 1 ? "" : "s"}</p>
-                </div>
-                <div>
-                  <p className="font-semibold text-slate-950">{formatZar(booking.final_total_cents)}</p>
-                  <p className="mt-1 text-slate-600">{booking.payment ? slugToTitle(booking.payment.status) : slugToTitle(booking.payment_status)}</p>
-                </div>
-                <div className="justify-self-start rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">
-                  {slugToTitle(booking.booking_status)}
-                </div>
-              </div>
-            )) : <p className="text-sm text-slate-600">No bookings found.</p>}
-          </div>
-        </Card>
+        <div>
+          <AdminBookingsDataGrid bookings={bookings} cleaners={management.cleaners} />
+        </div>
       </section>
-    </>
+    </div>
+  );
+}
+
+function MetricItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2">
+      <span className="text-slate-300">{label}</span>
+      <span className="font-semibold text-white">{value}</span>
+    </div>
+  );
+}
+
+function QuickAction({ href, label }: { href: string; label: string }) {
+  return (
+    <Link
+      href={href}
+      className="block rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2 font-semibold text-slate-100 transition hover:border-white/20 hover:bg-white/[0.06]"
+    >
+      {label}
+    </Link>
   );
 }

@@ -18,7 +18,7 @@ export async function DashboardHeader({ active, theme = "light" }: DashboardHead
     { href: "/dashboard", label: "Customer", key: "customer", show: Boolean(user && profile?.role === "customer") },
     { href: "/bookings", label: "Bookings", key: "customer", show: Boolean(user && profile?.role === "customer") },
     { href: "/cleaner", label: "Cleaner", key: "cleaner", show: Boolean(cleanerSession) },
-    { href: "/admin/cleaners", label: "Admin", key: "admin", show: Boolean(user && profile?.role === "admin") },
+    { href: "/admin/dashboard", label: "Admin", key: "admin", show: Boolean(user && profile?.role === "admin") },
   ];
 
   return (

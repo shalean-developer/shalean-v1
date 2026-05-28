@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { CleanerPhoneField } from "@/components/admin/CleanerPhoneField";
+import { AdminBookingWizardCard } from "@/components/admin/AdminBookingWizardCard";
 import {
   createAdminBookingAction,
   createCleanerAction,
@@ -176,117 +177,13 @@ export function AdminBookingCard({
   equipmentOptions: EquipmentRow[];
 }) {
   return (
-    <Card className="border-white/10 bg-white p-5 text-slate-950">
-      <h2 className="text-xl font-bold">Create booking for customer</h2>
-      <form action={createAdminBookingAction} className="mt-4 grid gap-5">
-        <FieldGroup title="Customer">
-          <AdminSelect
-            label="Customer"
-            name="customerId"
-            options={customers.map((customer) => ({ value: customer.id, label: `${customer.full_name} (${customer.email})` }))}
-            required
-          />
-        </FieldGroup>
-
-        <FieldGroup title="Booking date and time">
-          <div className="grid gap-3 lg:grid-cols-2">
-            <AdminInput label="Booking date" name="bookingDate" type="date" required />
-            <AdminSelect
-              label="Time window"
-              name="bookingTime"
-              options={[
-                { value: "08:00-12:00", label: "08:00 - 12:00" },
-                { value: "12:00-16:00", label: "12:00 - 16:00" },
-                { value: "16:00-20:00", label: "16:00 - 20:00" },
-              ]}
-              required
-            />
-          </div>
-        </FieldGroup>
-
-        <FieldGroup title="Address and property details">
-          <div className="grid gap-3 lg:grid-cols-[2fr_1fr_1fr]">
-            <AdminInput label="Address" name="address" required />
-            <AdminInput label="Suburb" name="suburb" required />
-            <AdminSelect
-              label="Property type"
-              name="propertyType"
-              options={[
-                { value: "apartment", label: "Apartment" },
-                { value: "house", label: "House" },
-                { value: "office", label: "Office" },
-                { value: "airbnb", label: "Airbnb" },
-              ]}
-              required
-            />
-          </div>
-        </FieldGroup>
-
-        <FieldGroup title="Cleaning requirements">
-          <div className="grid gap-3 lg:grid-cols-5">
-            <AdminInput label="Bedrooms" name="bedrooms" type="number" min={0} defaultValue={2} required />
-            <AdminInput label="Bathrooms" name="bathrooms" type="number" min={0} defaultValue={1} required />
-            <AdminInput label="Extra rooms" name="extraRooms" type="number" min={0} defaultValue={0} required />
-            <AdminInput label="Cleaners" name="cleanerCount" type="number" min={1} max={4} defaultValue={1} required />
-            <AdminSelect
-              label="Frequency"
-              name="frequency"
-              options={[
-                { value: "once", label: "Once" },
-                { value: "weekly", label: "Weekly" },
-                { value: "fortnightly", label: "Fortnightly" },
-                { value: "monthly", label: "Monthly" },
-              ]}
-              required
-            />
-          </div>
-        </FieldGroup>
-
-        <FieldGroup title="Cleaner assignment">
-          <div className="grid gap-3 lg:grid-cols-2">
-            <AdminSelect
-              label="Preferred cleaner"
-              name="selectedCleanerId"
-              options={[
-                { value: "", label: "Auto-assign" },
-                ...cleaners.filter((cleaner) => cleaner.active).map((cleaner) => ({
-                  value: cleaner.id,
-                  label: cleaner.display_name ?? cleaner.full_name ?? cleaner.phone ?? cleaner.id,
-                })),
-              ]}
-            />
-            <AdminSelect
-              label="Equipment"
-              name="equipmentOptionKey"
-              options={equipmentOptions.map((item) => ({ value: item.key, label: `${item.label} (${formatZar(item.price_cents)})` }))}
-              required
-            />
-          </div>
-        </FieldGroup>
-
-        {addons.length > 0 ? (
-          <FieldGroup title="Add-ons">
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {addons.map((addon) => (
-                <label key={addon.key} className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm">
-                  <input name="addonKeys" type="checkbox" value={addon.key} />
-                  {addon.label} ({formatZar(addon.price_cents)})
-                </label>
-              ))}
-            </div>
-          </FieldGroup>
-        ) : null}
-
-        <FieldGroup title="Admin notes">
-          <label>
-            <span className="text-sm font-semibold text-slate-700">Access notes</span>
-            <textarea className="mt-2 min-h-24 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-700" name="accessNotes" />
-          </label>
-        </FieldGroup>
-
-        <SubmitButton>Create admin booking</SubmitButton>
-      </form>
-    </Card>
+    <AdminBookingWizardCard
+      action={createAdminBookingAction}
+      customers={customers}
+      cleaners={cleaners}
+      addons={addons}
+      equipmentOptions={equipmentOptions}
+    />
   );
 }
 
@@ -397,15 +294,6 @@ export function SettingsSection({
         </div>
       </Card>
     </div>
-  );
-}
-
-function FieldGroup({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <fieldset className="rounded-md border border-slate-200 bg-slate-50 p-4">
-      <legend className="px-1 text-sm font-black text-slate-950">{title}</legend>
-      <div className="mt-2">{children}</div>
-    </fieldset>
   );
 }
 
