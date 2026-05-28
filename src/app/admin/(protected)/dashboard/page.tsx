@@ -71,7 +71,7 @@ export default async function AdminDashboardPage() {
         <CleanerStatusCard cleaners={model.cleanerStatus} />
       </section>
 
-      <section id="reports" className="grid gap-4 xl:grid-cols-3">
+      <section id="reports" className="grid gap-4 xl:grid-cols-3 xl:items-stretch">
         <RevenueSnapshotCard rows={model.revenueSnapshot} />
         <BookingStatusCard
           breakdown={model.bookingBreakdown}
@@ -411,7 +411,7 @@ function RevenueSnapshotCard({
   rows: Array<{ label: string; value: string; ratio: number }>;
 }) {
   return (
-    <Card className="border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
+    <Card className="h-full border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-lg font-bold">Revenue snapshot</h2>
         <Link href="/admin/payments" className="text-xs font-semibold text-sky-700 hover:text-sky-800">View report</Link>
@@ -447,17 +447,16 @@ function BookingStatusCard({
   totalBookings: number;
 }) {
   return (
-    <Card className="border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
+    <Card className="h-full border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-lg font-bold">Booking status</h2>
         <Link href="/admin/bookings" className="text-xs font-semibold text-sky-700 hover:text-sky-800">View all</Link>
       </div>
       <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-        <div
-          className="h-36 w-36 rounded-full"
-          style={{ background: `conic-gradient(${chartGradient})` }}
-          aria-hidden
-        />
+        <div className="relative h-36 w-36 shrink-0" aria-hidden>
+          <div className="h-full w-full rounded-full" style={{ background: `conic-gradient(${chartGradient})` }} />
+          <div className="absolute inset-[28%] rounded-full bg-white" />
+        </div>
         <div className="w-full space-y-2">
           {breakdown.map((item) => (
             <div key={item.label} className="flex items-center justify-between text-sm">
@@ -481,7 +480,7 @@ function AlertsIssuesCard({
   alerts: Array<{ title: string; detail: string; tone: "critical" | "warning" | "info" | "success" }>;
 }) {
   return (
-    <Card className="border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
+    <Card className="h-full border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-lg font-bold">Alerts &amp; issues</h2>
         <Badge className="border-slate-200 bg-slate-50 text-slate-600">Live</Badge>
