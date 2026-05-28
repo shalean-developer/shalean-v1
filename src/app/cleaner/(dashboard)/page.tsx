@@ -44,17 +44,23 @@ export default async function CleanerDashboardPage() {
 
   const availableJobs = dashboard.offers;
   const todayJobs = dashboard.todayJobs;
-  const status = dashboard.profile.available ? "Online" : "Offline";
+  const available = dashboard.profile.available;
+  const firstName = dashboard.profile.name.split(" ")[0] || dashboard.profile.name;
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 pb-8 lg:space-y-6 lg:pt-4">
-      <header className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-        <Badge>Cleaner home</Badge>
-        <h1 className="mt-3 text-2xl font-black leading-tight text-slate-950 sm:text-4xl">
-          Welcome back, {dashboard.profile.name}
+      <header className="rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-5 sm:py-3.5">
+        <h1 className="text-lg font-black leading-tight text-slate-950 sm:text-xl">
+          Hi, {firstName}
         </h1>
-        <p className="mt-2 text-sm font-bold text-slate-700 sm:text-base">
-          Status: <span className="text-emerald-700">{status}</span>
+        <p className="mt-0.5 text-sm font-semibold">
+          <span className={available ? "text-emerald-700" : "text-amber-700"}>
+            {available ? "Online" : "Offline"}
+          </span>
+          <span className="text-slate-400"> • </span>
+          <span className="text-slate-600">
+            {available ? "Ready for offers" : "Not receiving offers"}
+          </span>
         </p>
       </header>
 
