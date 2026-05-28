@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isCleanerEligibleForBooking } from "./dispatch";
+import { blocksDispatchForCleanerOfferStatus, isCleanerEligibleForBooking } from "./dispatch";
 
 const cleaner = {
   id: "cleaner-1",
@@ -73,5 +73,17 @@ describe("isCleanerEligibleForBooking", () => {
     });
 
     expect(eligible).toBe(false);
+  });
+});
+
+describe("blocksDispatchForCleanerOfferStatus", () => {
+  it("does not block on pending_payment rows", () => {
+    expect(blocksDispatchForCleanerOfferStatus("pending_payment")).toBe(false);
+  });
+
+  it("blocks on active offer and job statuses", () => {
+    expect(blocksDispatchForCleanerOfferStatus("offered")).toBe(true);
+    expect(blocksDispatchForCleanerOfferStatus("accepted")).toBe(true);
+    expect(blocksDispatchForCleanerOfferStatus("in_progress")).toBe(true);
   });
 });

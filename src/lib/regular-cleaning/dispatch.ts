@@ -108,7 +108,7 @@ async function dispatchOffersForBooking(
   const placeholders = existingOffers.filter((offer) => ["pending_payment", "planned", "requested"].includes(offer.status));
 
   for (const cleaner of orderedCleaners) {
-    if (existingOffers.some((offer) => offer.cleaner_id === cleaner.id && blockingOfferStatuses.includes(offer.status))) {
+    if (existingOffers.some((offer) => offer.cleaner_id === cleaner.id && blocksDispatchForCleanerOfferStatus(offer.status))) {
       continue;
     }
 
@@ -414,6 +414,10 @@ function normalizeClock(value: string) {
 
 function compactUnique(values: string[]) {
   return Array.from(new Set(values));
+}
+
+export function blocksDispatchForCleanerOfferStatus(status: string) {
+  return blockingOfferStatuses.includes(status);
 }
 
 function hasMissingRelationError(error: { message?: string } | null) {
