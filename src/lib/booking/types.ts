@@ -15,8 +15,7 @@ export type PremiumAddOnKey =
   | "insideOven"
   | "insideFridge"
   | "interiorWalls"
-  | "ironing"
-  | "laundry"
+  | "laundryIroning"
   | "interiorWindows";
 
 export type BookingLifecycleStatus =

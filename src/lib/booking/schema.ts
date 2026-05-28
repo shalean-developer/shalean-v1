@@ -32,8 +32,7 @@ export const bookingDraftSchema = z.object({
     insideOven: z.boolean(),
     insideFridge: z.boolean(),
     interiorWalls: z.boolean(),
-    ironing: z.boolean(),
-    laundry: z.boolean(),
+    laundryIroning: z.boolean(),
     interiorWindows: z.boolean(),
   }),
   equipment: z.object({

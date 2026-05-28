@@ -575,12 +575,21 @@ function mergeDraft(savedDraft: Partial<BookingDraft>): BookingDraft {
 
 function mergeAddOns(savedAddOns: Partial<BookingDraft["addOns"]> | undefined) {
   const emptyAddOns = createEmptyBookingDraft().addOns;
-  const legacyAddOns = savedAddOns as (Partial<BookingDraft["addOns"]> & { windows?: boolean }) | undefined;
+  const legacyAddOns = savedAddOns as
+    | (Partial<BookingDraft["addOns"]> & { windows?: boolean; ironing?: boolean; laundry?: boolean })
+    | undefined;
 
   return {
-    ...emptyAddOns,
-    ...savedAddOns,
-    interiorWindows: savedAddOns?.interiorWindows ?? legacyAddOns?.windows ?? false,
+    insideCabinets: savedAddOns?.insideCabinets ?? emptyAddOns.insideCabinets,
+    insideOven: savedAddOns?.insideOven ?? emptyAddOns.insideOven,
+    insideFridge: savedAddOns?.insideFridge ?? emptyAddOns.insideFridge,
+    interiorWalls: savedAddOns?.interiorWalls ?? emptyAddOns.interiorWalls,
+    laundryIroning:
+      savedAddOns?.laundryIroning ??
+      legacyAddOns?.ironing ??
+      legacyAddOns?.laundry ??
+      emptyAddOns.laundryIroning,
+    interiorWindows: savedAddOns?.interiorWindows ?? legacyAddOns?.windows ?? emptyAddOns.interiorWindows,
   };
 }
 
