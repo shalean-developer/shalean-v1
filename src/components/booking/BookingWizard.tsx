@@ -795,11 +795,13 @@ function renderStep({
                   <button
                     key={addOn.key}
                     className={cn(
-                      "rounded-lg border p-4 text-left transition hover:border-emerald-500",
-                      enabled ? "border-emerald-700 bg-emerald-50" : "border-slate-200 bg-white",
+                      "rounded-[14px] border p-4 text-left transition hover:border-emerald-500",
+                      enabled ? "border-emerald-700 bg-emerald-50" : "border-[#d6e0ea] bg-white",
                     )}
                     onClick={() => updateAddOn(addOn.key, !enabled)}
                     type="button"
+                    role="switch"
+                    aria-checked={enabled}
                   >
                     <span className="flex items-start justify-between gap-3">
                       <span>
@@ -810,8 +812,11 @@ function renderStep({
                         {formatZar(addOn.priceCents)}
                       </span>
                     </span>
-                    <span className="mt-3 block text-xs font-semibold text-slate-500">
-                      Adds extra cleaning time
+                    <span className="mt-3 flex items-center gap-2">
+                      <Toggle on={enabled} />
+                      <span className={cn("text-xs font-semibold", enabled ? "text-emerald-800" : "text-slate-500")}>
+                        {enabled ? "Added" : "Add"}
+                      </span>
                     </span>
                   </button>
                 );
@@ -1345,6 +1350,25 @@ function StepTitle({ icon, title, text }: { icon?: React.ReactNode; title: strin
       </div>
       <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">{text}</p>
     </div>
+  );
+}
+
+function Toggle({ on }: { on: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors",
+        on ? "bg-emerald-700" : "bg-slate-300",
+      )}
+    >
+      <span
+        className={cn(
+          "inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform",
+          on ? "translate-x-[18px]" : "translate-x-0.5",
+        )}
+      />
+    </span>
   );
 }
 
