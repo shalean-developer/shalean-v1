@@ -1438,6 +1438,7 @@ function CleanerSelection({
     available: cleaner.available,
     equipmentEligible: cleaner.equipment_eligible,
   })) ?? getAvailableCleaners(draft.suburb);
+  const availableCleaners = cleaners.filter((cleaner) => cleaner.available);
   const selectedCleanerIds = draft.preferredCleanerId ? [draft.preferredCleanerId] : draft.selectedCleanerIds;
   const selectedCleaners = selectedCleanerIds
     .map((id) => cleaners.find((cleaner) => cleaner.id === id))
@@ -1497,24 +1498,23 @@ function CleanerSelection({
         </div>
       </div>
 
+      {availableCleaners.length === 0 ? (
+        <div className="mt-5 rounded-lg border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-600">
+          No cleaners are currently available for this suburb. Shalean will auto-assign the best available cleaner for the booking.
+        </div>
+      ) : (
       <div className="mt-5 grid gap-3 md:grid-cols-2">
-        {cleaners.map((cleaner) => {
+        {availableCleaners.map((cleaner) => {
           const selected = selectedCleanerIds.includes(cleaner.id);
-          const disabled = !cleaner.available;
 
           return (
             <button
               key={cleaner.id}
               className={cn(
-                "rounded-lg border p-4 text-left transition",
+                "rounded-lg border p-4 text-left transition hover:border-emerald-500",
                 selected ? "border-emerald-700 bg-emerald-50" : "border-slate-200 bg-white",
-                disabled ? "cursor-not-allowed opacity-60" : "hover:border-emerald-500",
               )}
-              disabled={disabled}
-              onClick={() => {
-                if (disabled) return;
-                onToggleCleaner(cleaner.id);
-              }}
+              onClick={() => onToggleCleaner(cleaner.id)}
               type="button"
             >
               <span className="flex gap-3">
@@ -1541,9 +1541,7 @@ function CleanerSelection({
                 </span>
               </span>
               <span className="mt-3 flex items-center justify-between text-xs font-semibold">
-                <span className={cleaner.available ? "text-emerald-700" : "text-red-700"}>
-                  {cleaner.available ? "Available" : "Unavailable for this suburb"}
-                </span>
+                <span className="text-emerald-700">Available</span>
                 <span className="text-slate-500">
                   {cleaner.equipmentEligible ? "Equipment eligible" : "Customer equipment only"}
                 </span>
@@ -1552,8 +1550,9 @@ function CleanerSelection({
           );
         })}
       </div>
+      )}
 
-      {selectedCleaners.length === 0 ? (
+      {availableCleaners.length > 0 && selectedCleaners.length === 0 ? (
         <div className="mt-4 rounded-lg border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-600">
           No preferred cleaner selected. Shalean will auto-assign the best available cleaner for the booking.
         </div>
