@@ -1,7 +1,8 @@
 import type React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { redirect } from "next/navigation";
-import { Bell, ChevronDown, Leaf, Search } from "lucide-react";
+import { Bell, ChevronDown, Search } from "lucide-react";
 import { AdminRouteNav } from "@/components/admin/AdminRouteNav";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -35,14 +36,12 @@ export function AdminLayoutShell({
 
   return (
     <main className="min-h-screen bg-[#f3f5f7] text-slate-950">
-      <header className="w-full border-b border-slate-200 bg-white shadow-sm">
+      <header className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white shadow-sm">
         <div className="flex w-full flex-col gap-3 px-3 py-3 sm:px-4 lg:flex-row lg:items-center lg:justify-between lg:px-6">
           <div className="flex items-center gap-2 text-slate-900">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
-              <Leaf className="h-4 w-4" />
-            </span>
+            <Image src="/shalean-logo.svg" alt="Shalean logo" width={32} height={32} className="h-8 w-8 rounded-full" />
             <div className="min-w-0">
-              <p className="truncate text-sm font-black uppercase tracking-[0.14em] text-emerald-700">Shalean Cleaning Services</p>
+              <p className="truncate text-sm font-black uppercase tracking-[0.14em] text-emerald-700">Shalean</p>
               <p className="truncate text-xs text-slate-500">Admin workspace</p>
             </div>
           </div>
