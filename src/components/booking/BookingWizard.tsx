@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useEffect, useId, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import {
   Calendar,
@@ -695,18 +695,28 @@ function renderStep({
     case 1:
       return (
         <FieldGrid title="Schedule" subtitle="Choose when you would like your cleaner to arrive.">
-          <ScheduleSelect label="Frequency" value={draft.frequency} onChange={(value) => update("frequency", value as BookingDraft["frequency"])}>
-            <option value="once">Once-off</option>
-            <option value="weekly">Weekly</option>
-            <option value="fortnightly">Fortnightly</option>
-            <option value="monthly">Monthly</option>
-          </ScheduleSelect>
-          <ScheduleDateInput label="Preferred date" min={todayInJohannesburg()} value={draft.date} onChange={(value) => update("date", value)} helper="Pick today or any future date." />
-          <ScheduleSelect label="Arrival window" value={draft.timeWindow} onChange={(value) => update("timeWindow", value)}>
-            <option value="08:00-12:00">Morning (08:00 - 12:00)</option>
-            <option value="12:00-16:00">Afternoon (12:00 - 16:00)</option>
-            <option value="16:00-19:00">Evening (16:00 - 19:00)</option>
-          </ScheduleSelect>
+          <ScheduleListbox
+            label="Frequency"
+            value={draft.frequency}
+            onChange={(value) => update("frequency", value as BookingDraft["frequency"])}
+            options={[
+              { value: "once", label: "Once-off" },
+              { value: "weekly", label: "Weekly" },
+              { value: "fortnightly", label: "Fortnightly" },
+              { value: "monthly", label: "Monthly" },
+            ]}
+          />
+          <ScheduleDatePicker label="Preferred date" min={todayInJohannesburg()} value={draft.date} onChange={(value) => update("date", value)} helper="Pick today or any future date." />
+          <ScheduleListbox
+            label="Arrival window"
+            value={draft.timeWindow}
+            onChange={(value) => update("timeWindow", value)}
+            options={[
+              { value: "08:00-12:00", label: "Morning (08:00 - 12:00)" },
+              { value: "12:00-16:00", label: "Afternoon (12:00 - 16:00)" },
+              { value: "16:00-19:00", label: "Evening (16:00 - 19:00)" },
+            ]}
+          />
           {draft.frequency === "weekly" || draft.frequency === "fortnightly" ? (
             <WeekdaySelector
               selectedWeekdays={draft.recurrence.weekdays}
@@ -1788,11 +1798,268 @@ function scheduleBorderClasses(error?: string) {
     : "border-[#d6e0ea]";
 }
 
-function ScheduleSelect({
+function FieldMessage({ id, helper, error }: { id: string; helper?: string; error?: string }) {
+  if (error) {
+    return (
+      <span id={id} className="mt-1.5 block text-xs font-medium leading-5 text-red-600">
+        {error}
+      </span>
+    );
+  }
+  if (helper) {
+    return (
+      <span id={id} className="mt-1.5 block text-xs leading-5 text-slate-500">
+        {helper}
+      </span>
+    );
+  }
+  return null;
+}
+
+function useDismiss(open: boolean, close: () => void, ref: React.RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: MouseEvent | TouchEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        close();
+      }
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+    };
+  }, [open, close, ref]);
+}
+
+type SelectOption = { value: string; label: string };
+
+function ScheduleListbox({
+  label,
+  value,
+  options,
+  onChange,
+  helper,
+  error,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  options: SelectOption[];
+  onChange: (value: string) => void;
+  helper?: string;
+  error?: string;
+  disabled?: boolean;
+}) {
+  const baseId = useId();
+  const labelId = `${baseId}-label`;
+  const buttonId = `${baseId}-button`;
+  const listId = `${baseId}-list`;
+  const messageId = `${baseId}-message`;
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const listRef = useRef<HTMLUListElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const selectedIndex = Math.max(0, options.findIndex((option) => option.value === value));
+  const [activeIndex, setActiveIndex] = useState(selectedIndex);
+
+  const closeAndFocus = useCallback(() => {
+    setOpen(false);
+    buttonRef.current?.focus();
+  }, []);
+
+  useDismiss(open, () => setOpen(false), containerRef);
+
+  useEffect(() => {
+    if (open) {
+      listRef.current?.focus();
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    listRef.current
+      ?.querySelector<HTMLElement>(`[data-index="${activeIndex}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [open, activeIndex]);
+
+  function openList() {
+    if (disabled) return;
+    setActiveIndex(selectedIndex);
+    setOpen(true);
+  }
+
+  function handleButtonKeyDown(event: React.KeyboardEvent) {
+    if (disabled) return;
+    if (!open && ["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) {
+      event.preventDefault();
+      openList();
+    }
+  }
+
+  function handleListKeyDown(event: React.KeyboardEvent) {
+    switch (event.key) {
+      case "ArrowDown":
+        event.preventDefault();
+        setActiveIndex((index) => Math.min(options.length - 1, index + 1));
+        break;
+      case "ArrowUp":
+        event.preventDefault();
+        setActiveIndex((index) => Math.max(0, index - 1));
+        break;
+      case "Home":
+        event.preventDefault();
+        setActiveIndex(0);
+        break;
+      case "End":
+        event.preventDefault();
+        setActiveIndex(options.length - 1);
+        break;
+      case "Enter":
+      case " ":
+        event.preventDefault();
+        onChange(options[activeIndex].value);
+        closeAndFocus();
+        break;
+      case "Escape":
+        event.preventDefault();
+        closeAndFocus();
+        break;
+      case "Tab":
+        setOpen(false);
+        break;
+    }
+  }
+
+  const selectedOption = options.find((option) => option.value === value);
+
+  return (
+    <div>
+      <span id={labelId} className="text-sm font-semibold text-slate-800">
+        {label}
+      </span>
+      <div ref={containerRef} className="relative mt-2">
+        <button
+          type="button"
+          id={buttonId}
+          ref={buttonRef}
+          disabled={disabled}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-labelledby={`${labelId} ${buttonId}`}
+          aria-describedby={error || helper ? messageId : undefined}
+          onClick={() => (open ? setOpen(false) : openList())}
+          onKeyDown={handleButtonKeyDown}
+          className={cn(
+            scheduleFieldBaseClasses,
+            "flex items-center justify-between px-4 text-left",
+            scheduleBorderClasses(error),
+            open && !error && "border-emerald-700 ring-2 ring-emerald-600/25",
+          )}
+        >
+          <span className="truncate">{selectedOption?.label ?? "Select"}</span>
+          <ChevronDown
+            aria-hidden
+            className={cn("ml-2 size-5 shrink-0 text-slate-500 transition-transform", open && "rotate-180")}
+          />
+        </button>
+        {open ? (
+          <ul
+            ref={listRef}
+            id={listId}
+            role="listbox"
+            tabIndex={-1}
+            aria-labelledby={labelId}
+            aria-activedescendant={`${listId}-opt-${activeIndex}`}
+            onKeyDown={handleListKeyDown}
+            className="absolute z-50 mt-2 max-h-64 w-full overflow-auto rounded-[14px] border border-[#d6e0ea] bg-white p-1.5 shadow-lg shadow-slate-900/10 outline-none"
+          >
+            {options.map((option, index) => {
+              const isSelected = option.value === value;
+              const isActive = index === activeIndex;
+              return (
+                <li
+                  key={option.value}
+                  id={`${listId}-opt-${index}`}
+                  data-index={index}
+                  role="option"
+                  aria-selected={isSelected}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onClick={() => {
+                    onChange(option.value);
+                    closeAndFocus();
+                  }}
+                  className={cn(
+                    "flex cursor-pointer items-center justify-between rounded-[10px] px-3 py-2.5 text-base text-[#0f1e35]",
+                    isActive && "bg-emerald-50 text-emerald-900",
+                  )}
+                >
+                  <span className="truncate">{option.label}</span>
+                  {isSelected ? <Check aria-hidden className="ml-2 size-4 shrink-0 text-emerald-700" /> : null}
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+      </div>
+      <FieldMessage id={messageId} helper={helper} error={error} />
+    </div>
+  );
+}
+
+const CALENDAR_WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+const CALENDAR_MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+function pad2(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function toIsoDate(year: number, monthIndex: number, day: number) {
+  return `${year}-${pad2(monthIndex + 1)}-${pad2(day)}`;
+}
+
+function parseIsoDate(value: string): { year: number; monthIndex: number; day: number } | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  return { year: Number(match[1]), monthIndex: Number(match[2]) - 1, day: Number(match[3]) };
+}
+
+function shiftIsoDate(iso: string, deltaDays: number) {
+  const parsed = parseIsoDate(iso);
+  if (!parsed) return iso;
+  const date = new Date(parsed.year, parsed.monthIndex, parsed.day + deltaDays);
+  return toIsoDate(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function shiftIsoMonth(iso: string, deltaMonths: number) {
+  const parsed = parseIsoDate(iso);
+  if (!parsed) return iso;
+  const firstOfTarget = new Date(parsed.year, parsed.monthIndex + deltaMonths, 1);
+  const targetYear = firstOfTarget.getFullYear();
+  const targetMonth = firstOfTarget.getMonth();
+  const lastDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+  return toIsoDate(targetYear, targetMonth, Math.min(parsed.day, lastDay));
+}
+
+function ScheduleDatePicker({
   label,
   value,
   onChange,
-  children,
+  min,
   helper,
   error,
   disabled,
@@ -1800,78 +2067,217 @@ function ScheduleSelect({
   label: string;
   value: string;
   onChange: (value: string) => void;
-  children: React.ReactNode;
+  min?: string;
   helper?: string;
   error?: string;
   disabled?: boolean;
 }) {
-  const id = useId();
-  return (
-    <div>
-      <label htmlFor={id} className="text-sm font-semibold text-slate-800">
-        {label}
-      </label>
-      <div className="relative mt-2">
-        <select
-          id={id}
-          value={value}
-          disabled={disabled}
-          aria-invalid={error ? true : undefined}
-          onChange={(event) => onChange(event.target.value)}
-          className={cn(scheduleFieldBaseClasses, "appearance-none pl-4 pr-11", scheduleBorderClasses(error))}
-        >
-          {children}
-        </select>
-        <ChevronDown aria-hidden className="pointer-events-none absolute right-4 top-1/2 size-5 -translate-y-1/2 text-slate-500" />
-      </div>
-      {error ? (
-        <span className="mt-1.5 block text-xs font-medium leading-5 text-red-600">{error}</span>
-      ) : helper ? (
-        <span className="mt-1.5 block text-xs leading-5 text-slate-500">{helper}</span>
-      ) : null}
-    </div>
-  );
-}
+  const baseId = useId();
+  const labelId = `${baseId}-label`;
+  const buttonId = `${baseId}-button`;
+  const dialogId = `${baseId}-dialog`;
+  const messageId = `${baseId}-message`;
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
 
-function ScheduleDateInput({
-  label,
-  value,
-  onChange,
-  helper,
-  error,
-  disabled,
-  ...props
-}: Omit<React.InputHTMLAttributes<HTMLInputElement>, "onChange" | "type"> & {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  helper?: string;
-  error?: string;
-}) {
-  const id = useId();
+  const today = todayInJohannesburg();
+  const lowerBound = min && min > "" ? min : undefined;
+  const clamp = useCallback(
+    (iso: string) => (lowerBound && iso < lowerBound ? lowerBound : iso),
+    [lowerBound],
+  );
+  const initialFocus = clamp(value || today);
+  const [focusedIso, setFocusedIso] = useState(initialFocus);
+
+  const closeAndFocus = useCallback(() => {
+    setOpen(false);
+    buttonRef.current?.focus();
+  }, []);
+
+  useDismiss(open, () => setOpen(false), containerRef);
+
+  function openCalendar() {
+    if (disabled) return;
+    setFocusedIso(clamp(value || today));
+    setOpen(true);
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    gridRef.current
+      ?.querySelector<HTMLElement>(`[data-date="${focusedIso}"]`)
+      ?.focus();
+  }, [open, focusedIso]);
+
+  const view = parseIsoDate(focusedIso) ?? parseIsoDate(today)!;
+  const firstWeekdayMondayBased = (new Date(view.year, view.monthIndex, 1).getDay() + 6) % 7;
+  const daysInMonth = new Date(view.year, view.monthIndex + 1, 0).getDate();
+  const cells: (number | null)[] = [
+    ...Array.from({ length: firstWeekdayMondayBased }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, index) => index + 1),
+  ];
+
+  function moveFocus(nextIso: string) {
+    setFocusedIso(clamp(nextIso));
+  }
+
+  function handleGridKeyDown(event: React.KeyboardEvent) {
+    switch (event.key) {
+      case "ArrowLeft":
+        event.preventDefault();
+        moveFocus(shiftIsoDate(focusedIso, -1));
+        break;
+      case "ArrowRight":
+        event.preventDefault();
+        moveFocus(shiftIsoDate(focusedIso, 1));
+        break;
+      case "ArrowUp":
+        event.preventDefault();
+        moveFocus(shiftIsoDate(focusedIso, -7));
+        break;
+      case "ArrowDown":
+        event.preventDefault();
+        moveFocus(shiftIsoDate(focusedIso, 7));
+        break;
+      case "PageUp":
+        event.preventDefault();
+        moveFocus(shiftIsoMonth(focusedIso, -1));
+        break;
+      case "PageDown":
+        event.preventDefault();
+        moveFocus(shiftIsoMonth(focusedIso, 1));
+        break;
+      case "Enter":
+      case " ":
+        event.preventDefault();
+        if (!lowerBound || focusedIso >= lowerBound) {
+          onChange(focusedIso);
+          closeAndFocus();
+        }
+        break;
+      case "Escape":
+        event.preventDefault();
+        closeAndFocus();
+        break;
+    }
+  }
+
+  const canGoPrev = !lowerBound || toIsoDate(view.year, view.monthIndex, 1) > lowerBound;
+
   return (
     <div>
-      <label htmlFor={id} className="text-sm font-semibold text-slate-800">
+      <span id={labelId} className="text-sm font-semibold text-slate-800">
         {label}
-      </label>
-      <div className="relative mt-2">
-        <input
-          id={id}
-          type="date"
-          value={value}
+      </span>
+      <div ref={containerRef} className="relative mt-2">
+        <button
+          type="button"
+          id={buttonId}
+          ref={buttonRef}
           disabled={disabled}
-          aria-invalid={error ? true : undefined}
-          onChange={(event) => onChange(event.target.value)}
-          className={cn(scheduleFieldBaseClasses, "schedule-date-field pl-4 pr-12", scheduleBorderClasses(error))}
-          {...props}
-        />
-        <Calendar aria-hidden className="pointer-events-none absolute right-4 top-1/2 size-5 -translate-y-1/2 text-slate-500" />
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          aria-labelledby={`${labelId} ${buttonId}`}
+          aria-describedby={error || helper ? messageId : undefined}
+          onClick={() => (open ? setOpen(false) : openCalendar())}
+          className={cn(
+            scheduleFieldBaseClasses,
+            "flex items-center justify-between px-4 text-left",
+            scheduleBorderClasses(error),
+            open && !error && "border-emerald-700 ring-2 ring-emerald-600/25",
+          )}
+        >
+          <span className={cn("truncate", !value && "text-slate-400")}>
+            {value ? formatDate(value) : "Select a date"}
+          </span>
+          <Calendar aria-hidden className="ml-2 size-5 shrink-0 text-slate-500" />
+        </button>
+        {open ? (
+          <div
+            id={dialogId}
+            role="dialog"
+            aria-modal="false"
+            aria-labelledby={labelId}
+            className="absolute z-50 mt-2 w-72 rounded-[14px] border border-[#d6e0ea] bg-white p-3 shadow-lg shadow-slate-900/10"
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <button
+                type="button"
+                disabled={!canGoPrev}
+                aria-label="Previous month"
+                onClick={() => moveFocus(shiftIsoMonth(focusedIso, -1))}
+                className="flex size-9 items-center justify-center rounded-[10px] text-slate-600 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+              >
+                <ChevronLeft aria-hidden className="size-5" />
+              </button>
+              <span aria-live="polite" className="text-sm font-semibold text-[#0f1e35]">
+                {CALENDAR_MONTHS[view.monthIndex]} {view.year}
+              </span>
+              <button
+                type="button"
+                aria-label="Next month"
+                onClick={() => moveFocus(shiftIsoMonth(focusedIso, 1))}
+                className="flex size-9 items-center justify-center rounded-[10px] text-slate-600 transition-colors hover:bg-slate-100"
+              >
+                <ChevronRight aria-hidden className="size-5" />
+              </button>
+            </div>
+            <div className="grid grid-cols-7 gap-0.5 text-center text-xs font-semibold text-slate-400">
+              {CALENDAR_WEEKDAYS.map((weekday) => (
+                <span key={weekday} className="flex h-8 items-center justify-center">
+                  {weekday}
+                </span>
+              ))}
+            </div>
+            <div
+              ref={gridRef}
+              role="grid"
+              onKeyDown={handleGridKeyDown}
+              className="grid grid-cols-7 gap-0.5"
+            >
+              {cells.map((day, index) => {
+                if (day === null) {
+                  return <span key={`empty-${index}`} aria-hidden className="h-9" />;
+                }
+                const iso = toIsoDate(view.year, view.monthIndex, day);
+                const isSelected = iso === value;
+                const isToday = iso === today;
+                const isDisabled = Boolean(lowerBound && iso < lowerBound);
+                const isFocusTarget = iso === focusedIso;
+                return (
+                  <button
+                    key={iso}
+                    type="button"
+                    role="gridcell"
+                    data-date={iso}
+                    disabled={isDisabled}
+                    tabIndex={isFocusTarget ? 0 : -1}
+                    aria-selected={isSelected}
+                    aria-current={isToday ? "date" : undefined}
+                    onClick={() => {
+                      onChange(iso);
+                      closeAndFocus();
+                    }}
+                    className={cn(
+                      "flex h-9 items-center justify-center rounded-[10px] text-sm outline-none transition-colors focus:ring-2 focus:ring-emerald-600/40",
+                      isSelected
+                        ? "bg-emerald-700 font-semibold text-white"
+                        : "text-[#0f1e35] hover:bg-emerald-50",
+                      !isSelected && isToday && "font-semibold text-emerald-700",
+                      isDisabled && "cursor-not-allowed text-slate-300 hover:bg-transparent",
+                    )}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
       </div>
-      {error ? (
-        <span className="mt-1.5 block text-xs font-medium leading-5 text-red-600">{error}</span>
-      ) : helper ? (
-        <span className="mt-1.5 block text-xs leading-5 text-slate-500">{helper}</span>
-      ) : null}
+      <FieldMessage id={messageId} helper={helper} error={error} />
     </div>
   );
 }

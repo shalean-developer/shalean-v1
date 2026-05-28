@@ -30,25 +30,3 @@ textarea {
   background: #a7f3d0;
   color: #064e3b;
 }
-
-/* Schedule step date field: keep the native picker but hide the default
-   indicator and stretch its hit area across the right edge so a custom
-   calendar icon can sit underneath without breaking the native picker. */
-.schedule-date-field::-webkit-calendar-picker-indicator {
-  position: absolute;
-  inset-block: 0;
-  right: 0;
-  width: 3rem;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  cursor: pointer;
-  opacity: 0;
-}
-
-.schedule-date-field::-webkit-inner-spin-button,
-.schedule-date-field::-webkit-clear-button {
-  display: none;
-  -webkit-appearance: none;
-  appearance: none;
-}
