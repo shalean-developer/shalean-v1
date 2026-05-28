@@ -738,27 +738,26 @@ function renderStep({
     case 2:
       return (
         <FieldGrid title="Location" subtitle="Tell us where your cleaner should go." icon={<MapPin />}>
-          <Select label="Cape Town suburb" value={draft.suburb} onChange={(value) => update("suburb", value)}>
-            {capeTownSuburbs.map((suburb) => (
-              <option key={suburb} value={suburb}>{suburb}</option>
-            ))}
-          </Select>
-          <Input
+          <ScheduleListbox
+            label="Cape Town suburb"
+            value={draft.suburb}
+            onChange={(value) => update("suburb", value)}
+            options={capeTownSuburbs.map((suburb) => ({ value: suburb, label: suburb }))}
+          />
+          <ScheduleInput
             label="Street address"
             value={draft.address}
             onChange={(value) => update("address", value)}
             placeholder="123 Main Road, Apartment 4B"
             helper="Start typing your address and select it from the list."
           />
-          <label className="md:col-span-2">
-            <span className="text-sm font-semibold text-slate-800">Access notes <span className="font-normal text-slate-400">(optional)</span></span>
-            <textarea
-              className="mt-2 min-h-24 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-700"
-              value={draft.notes}
-              onChange={(event) => update("notes", event.target.value)}
-              placeholder="Gate code, parking, pets, or anything the cleaner should know."
-            />
-          </label>
+          <ScheduleTextarea
+            label="Access notes"
+            optional
+            value={draft.notes}
+            onChange={(value) => update("notes", value)}
+            placeholder="Gate code, parking, pets, or anything the cleaner should know."
+          />
         </FieldGrid>
       );
     case 3:
@@ -766,9 +765,9 @@ function renderStep({
         <div>
           <StepTitle title="House details" text="Tell us about your home and choose any extras you would like." />
           <div className="grid gap-4 sm:grid-cols-3">
-            <Input label="Bedrooms" type="number" value={String(draft.bedrooms)} onChange={(value) => update("bedrooms", Number(value))} />
-            <Input label="Bathrooms" type="number" value={String(draft.bathrooms)} onChange={(value) => update("bathrooms", Number(value))} />
-            <Input label="Extra rooms" type="number" value={String(draft.extraRooms)} onChange={(value) => update("extraRooms", Number(value))} />
+            <ScheduleInput label="Bedrooms" type="number" min={0} inputMode="numeric" value={String(draft.bedrooms)} onChange={(value) => update("bedrooms", Number(value))} />
+            <ScheduleInput label="Bathrooms" type="number" min={0} inputMode="numeric" value={String(draft.bathrooms)} onChange={(value) => update("bathrooms", Number(value))} />
+            <ScheduleInput label="Extra rooms" type="number" min={0} inputMode="numeric" value={String(draft.extraRooms)} onChange={(value) => update("extraRooms", Number(value))} />
           </div>
 
           <div className="mt-7">
@@ -1800,6 +1799,93 @@ function Select({
         {children}
       </select>
     </label>
+  );
+}
+
+function ScheduleInput({
+  label,
+  value,
+  onChange,
+  helper,
+  error,
+  placeholder,
+  type = "text",
+  min,
+  inputMode,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  helper?: string;
+  error?: string;
+  placeholder?: string;
+  type?: string;
+  min?: number;
+  inputMode?: React.InputHTMLAttributes<HTMLInputElement>["inputMode"];
+}) {
+  const baseId = useId();
+  const messageId = `${baseId}-message`;
+
+  return (
+    <div>
+      <span className="text-sm font-semibold text-slate-800">{label}</span>
+      <div className="mt-2">
+        <input
+          type={type}
+          value={value}
+          min={min}
+          inputMode={inputMode}
+          placeholder={placeholder}
+          aria-describedby={error || helper ? messageId : undefined}
+          onChange={(event) => onChange(event.target.value)}
+          className={cn(scheduleFieldBaseClasses, "px-4", scheduleBorderClasses(error))}
+        />
+      </div>
+      <FieldMessage id={messageId} helper={helper} error={error} />
+    </div>
+  );
+}
+
+function ScheduleTextarea({
+  label,
+  value,
+  onChange,
+  helper,
+  error,
+  placeholder,
+  optional,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  helper?: string;
+  error?: string;
+  placeholder?: string;
+  optional?: boolean;
+}) {
+  const baseId = useId();
+  const messageId = `${baseId}-message`;
+
+  return (
+    <div className="md:col-span-2">
+      <span className="text-sm font-semibold text-slate-800">
+        {label}
+        {optional ? <span className="font-normal text-slate-400"> (optional)</span> : null}
+      </span>
+      <div className="mt-2">
+        <textarea
+          value={value}
+          placeholder={placeholder}
+          aria-describedby={error || helper ? messageId : undefined}
+          onChange={(event) => onChange(event.target.value)}
+          className={cn(
+            "min-h-28 w-full rounded-[14px] border bg-white px-4 py-3 text-base text-[#0f1e35] outline-none transition-colors hover:border-[#b6c5d4] focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/25",
+            scheduleBorderClasses(error),
+          )}
+        />
+      </div>
+      <FieldMessage id={messageId} helper={helper} error={error} />
+    </div>
   );
 }
 
