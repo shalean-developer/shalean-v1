@@ -142,7 +142,7 @@ async function dispatchOffersForBooking(
   }
 }
 
-async function ensureCustomerSelectedCleanerAccepted(
+export async function ensureCustomerSelectedCleanerAccepted(
   supabase: Supabase,
   booking: BookingRow,
   cleaners: CleanerRow[],
@@ -160,16 +160,11 @@ async function ensureCustomerSelectedCleanerAccepted(
 
   const cleaner = cleaners.find((candidate) => candidate.id === selectedCleanerId);
   const earningSnapshot = cleaner ? calculateRegularCleaningEarningForBooking(booking, cleaner) : null;
-  const earningPayload = earningSnapshot && isValidRegularCleaningEarning(earningSnapshot)
-    ? {
-      earning_cents: earningSnapshot.earningCents,
-      eligible_value_cents: earningSnapshot.eligibleValueCents,
-      earning_rate_percent: earningSnapshot.earningRatePercent,
-      earning_rule: earningSnapshot.earningRule,
-    }
-    : {};
+  const resolvedEarning = earningSnapshot && isValidRegularCleaningEarning(earningSnapshot)
+    ? earningSnapshot
+    : null;
   const now = new Date().toISOString();
-  const payload = {
+  const payload: Database["public"]["Tables"]["booking_cleaners"]["Insert"] = {
     booking_id: booking.id,
     cleaner_id: selectedCleanerId,
     cleaner_count: booking.cleaner_count,
@@ -180,7 +175,10 @@ async function ensureCustomerSelectedCleanerAccepted(
     declined_at: null,
     decline_reason: null,
     offer_expires_at: null,
-    ...earningPayload,
+    earning_cents: resolvedEarning?.earningCents ?? null,
+    eligible_value_cents: resolvedEarning?.eligibleValueCents ?? null,
+    earning_rate_percent: resolvedEarning?.earningRatePercent ?? null,
+    earning_rule: resolvedEarning?.earningRule ?? null,
   };
   const writeResult = preferredOffer
     ? await supabase.from("booking_cleaners").update(payload).eq("id", preferredOffer.id).select("*").single()
