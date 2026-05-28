@@ -368,6 +368,44 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["booking_cleaners"]["Insert"]>;
         Relationships: [];
       };
+      cleaner_availability: {
+        Row: {
+          id: string;
+          cleaner_id: string;
+          day_of_week: number;
+          start_time: string;
+          end_time: string;
+          timezone: string;
+          created_at: string;
+        };
+        Insert: {
+          cleaner_id: string;
+          day_of_week: number;
+          start_time: string;
+          end_time: string;
+          timezone?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["cleaner_availability"]["Insert"]>;
+        Relationships: [];
+      };
+      cleaner_time_off: {
+        Row: {
+          id: string;
+          cleaner_id: string;
+          start_at: string;
+          end_at: string;
+          reason: string | null;
+          created_at: string;
+        };
+        Insert: {
+          cleaner_id: string;
+          start_at: string;
+          end_at: string;
+          reason?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["cleaner_time_off"]["Insert"]>;
+        Relationships: [];
+      };
       payments: {
         Row: {
           id: string;

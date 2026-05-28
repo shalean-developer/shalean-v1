@@ -102,7 +102,8 @@ export async function updateCleanerAvailabilityAction(formData: FormData) {
 
   try {
     const { cleaner } = await requireCleanerSession();
-    const availability = String(formData.get("availability") ?? "") === "available";
+    const availabilityMode = String(formData.get("availability") ?? "");
+    const availability = availabilityMode === "online" || availabilityMode === "available";
     const admin = createSupabaseAdminClient();
     const result = await admin
       .from("cleaners")
@@ -114,8 +115,8 @@ export async function updateCleanerAvailabilityAction(formData: FormData) {
     }
 
     const message = availability
-      ? "Status updated to Available. You can receive new offers."
-      : "Status updated to Paused. You are not receiving new offers.";
+      ? "Status updated to Online. You can receive new offers."
+      : "Status updated to Offline. You are not receiving new offers.";
     redirectTarget = buildProfileRedirect("success", message);
   } catch (error) {
     redirectTarget = buildProfileRedirect("error", toErrorMessage(error));

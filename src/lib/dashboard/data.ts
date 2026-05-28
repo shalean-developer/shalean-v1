@@ -139,7 +139,10 @@ export async function loadCleanerDashboard({ cleanerId }: { cleanerId?: string |
     .reduce((total, job) => total + (job.offer.earning_cents ?? 0), 0);
   const verification = selectedCleaner
     ? [
-      { label: "Availability status", value: selectedCleaner.available ? "Available" : "Paused" },
+      {
+        label: "Availability status",
+        value: !selectedCleaner.active ? "Offline" : selectedCleaner.available ? "Online" : "Offline",
+      },
       { label: "Equipment eligible", value: selectedCleaner.equipment_eligible ? "Yes" : "No" },
       { label: "Service areas", value: `${selectedCleaner.suburbs.length}` },
       { label: "Rating", value: selectedCleaner.rating > 0 ? `${selectedCleaner.rating.toFixed(1)} / 5` : "New cleaner" },

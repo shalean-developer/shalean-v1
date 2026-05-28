@@ -129,10 +129,10 @@ export default async function CleanerProfilePage({ searchParams }: ProfilePagePr
               <input
                 name="availability"
                 type="hidden"
-                value={availability.state === "available" ? "paused" : "available"}
+                value={availability.state === "online" || availability.state === "busy" ? "offline" : "online"}
               />
               <button className="rounded-md border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700" type="submit">
-                {availability.state === "available" ? "Pause availability" : "Set to Available"}
+                {availability.state === "online" || availability.state === "busy" ? "Set Offline" : "Set Online"}
               </button>
             </form>
           </Card>

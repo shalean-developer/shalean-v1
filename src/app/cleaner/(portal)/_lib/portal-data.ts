@@ -7,8 +7,9 @@ export const getCleanerPortalData = cache(async () => {
   const cleanerSession = await requireCleanerSession();
   const dashboard = await loadCleanerDashboard({ cleanerId: cleanerSession.cleaner.id });
   const cleaner = dashboard.selectedCleaner ?? cleanerSession.cleaner;
-  const availability = getCleanerAvailability(cleaner);
-  const readiness = getCleanerReadiness(cleaner);
+  const hasInProgressJob = dashboard.inProgressJobs.length > 0;
+  const availability = getCleanerAvailability(cleaner, { hasInProgressJob });
+  const readiness = getCleanerReadiness(cleaner, { hasInProgressJob });
   const earningJobs = [...dashboard.upcomingJobs, ...dashboard.inProgressJobs, ...dashboard.completedJobs];
   const today = new Date();
 

@@ -2,41 +2,53 @@ import type { Database } from "@/lib/supabase/database.types";
 
 type CleanerRow = Database["public"]["Tables"]["cleaners"]["Row"];
 
-export type CleanerAvailabilityState = "available" | "paused" | "offline";
+export type CleanerAvailabilityState = "online" | "offline" | "busy";
 
 export function getCleanerName(cleaner: { display_name: string | null; full_name: string | null }) {
   return cleaner.display_name ?? cleaner.full_name ?? "Shalean cleaner";
 }
 
-export function getCleanerAvailability(cleaner: { available: boolean; active: boolean }) {
+export function getCleanerAvailability(
+  cleaner: { available: boolean; active: boolean },
+  options?: { hasInProgressJob?: boolean },
+) {
   if (!cleaner.active) {
     return {
       state: "offline" as CleanerAvailabilityState,
       label: "Offline",
-      description: "Your cleaner account is offline and not receiving offers.",
+      description: "Your cleaner account is inactive and cannot receive offers.",
       badgeClass: "border-slate-200 bg-slate-100 text-slate-700",
     };
   }
 
   if (!cleaner.available) {
     return {
-      state: "paused" as CleanerAvailabilityState,
-      label: "Paused",
+      state: "offline" as CleanerAvailabilityState,
+      label: "Offline",
       description: "You are not receiving new job offers.",
       badgeClass: "border-amber-200 bg-amber-50 text-amber-900",
     };
   }
 
+  if (options?.hasInProgressJob) {
+    return {
+      state: "busy" as CleanerAvailabilityState,
+      label: "Busy",
+      description: "You are currently on an active job.",
+      badgeClass: "border-indigo-200 bg-indigo-50 text-indigo-900",
+    };
+  }
+
   return {
-    state: "available" as CleanerAvailabilityState,
-    label: "Available",
+    state: "online" as CleanerAvailabilityState,
+    label: "Online",
     description: "You can receive new offers.",
     badgeClass: "border-emerald-200 bg-emerald-50 text-emerald-800",
   };
 }
 
-export function getCleanerReadiness(cleaner: CleanerRow) {
-  const availability = getCleanerAvailability(cleaner);
+export function getCleanerReadiness(cleaner: CleanerRow, options?: { hasInProgressJob?: boolean }) {
+  const availability = getCleanerAvailability(cleaner, options);
   const payoutReady = cleaner.auth_user_id && cleaner.auth_email && cleaner.phone;
 
   return [
