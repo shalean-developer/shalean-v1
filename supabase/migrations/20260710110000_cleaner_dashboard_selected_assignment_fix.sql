@@ -12,17 +12,44 @@ as $$
     from public.bookings b
     where b.id = p_booking_id
       and (
-        b.selected_cleaner_id = public.auth_cleaner_id()
+        exists (
+          select 1
+          from public.cleaners selected_cleaner
+          where selected_cleaner.id = b.selected_cleaner_id
+            and selected_cleaner.auth_user_id = auth.uid()
+        )
         or exists (
           select 1
           from public.booking_cleaners bc
+          join public.cleaners assigned_cleaner
+            on assigned_cleaner.id = bc.cleaner_id
           where bc.booking_id = b.id
-            and bc.cleaner_id = public.auth_cleaner_id()
+            and assigned_cleaner.auth_user_id = auth.uid()
             and bc.status in ('pending_payment', 'offered', 'accepted', 'in_progress', 'completed')
         )
       )
   );
 $$;
+
+alter table public.bookings enable row level security;
+alter table public.booking_cleaners enable row level security;
+
+drop policy if exists bookings_select_cleaner on public.bookings;
+create policy bookings_select_cleaner on public.bookings
+  for select to authenticated
+  using (public.cleaner_can_access_booking(id));
+
+drop policy if exists booking_cleaners_select_cleaner on public.booking_cleaners;
+create policy booking_cleaners_select_cleaner on public.booking_cleaners
+  for select to authenticated
+  using (
+    exists (
+      select 1
+      from public.cleaners c
+      where c.id = booking_cleaners.cleaner_id
+        and c.auth_user_id = auth.uid()
+    )
+  );
 
 insert into public.booking_cleaners (
   booking_id,
