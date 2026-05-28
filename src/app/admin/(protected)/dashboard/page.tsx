@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { ADMIN_PAGE_DESCRIPTION_CLASS, ADMIN_PAGE_TITLE_CLASS } from "@/components/admin/AdminLayoutShell";
 import { loadAdminDashboard, type DashboardBooking } from "@/lib/dashboard/data";
 import { formatZar, slugToTitle } from "@/lib/utils";
 
@@ -47,8 +48,8 @@ export default async function AdminDashboardPage() {
       <section className="py-1">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Dashboard overview</p>
-            <p className="mt-2 text-sm text-slate-600">
+            <h1 className={ADMIN_PAGE_TITLE_CLASS}>Dashboard overview</h1>
+            <p className={ADMIN_PAGE_DESCRIPTION_CLASS}>
               Monitor bookings, cleaners, payments, and operational risk in one place.
             </p>
           </div>

@@ -117,12 +117,15 @@ export function AdminLayoutShell({
   );
 }
 
+export const ADMIN_PAGE_TITLE_CLASS = "text-3xl font-black tracking-tight text-slate-950 sm:text-[2.25rem]";
+export const ADMIN_PAGE_DESCRIPTION_CLASS = "mt-2 max-w-3xl text-sm leading-6 text-slate-600";
+
 export function AdminPageHeading({ eyebrow, title, children }: { eyebrow: string; title: string; children?: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">{eyebrow}</p>
-      <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950 sm:text-[2rem]">{title}</h2>
-      {children ? <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{children}</p> : null}
+      <h2 className={`mt-2 ${ADMIN_PAGE_TITLE_CLASS}`}>{title}</h2>
+      {children ? <p className={ADMIN_PAGE_DESCRIPTION_CLASS}>{children}</p> : null}
     </div>
   );
 }
