@@ -1602,59 +1602,86 @@ function BookingSummary({
   const equipmentOption = catalog?.equipmentOptions.find((option) => option.key === draft.equipment.mode);
 
   const suppliesLabel = draft.equipment.mode === "with_equipment" ? "Shalean brings supplies" : "I have my own supplies";
+  const usesOwnSupplies = draft.equipment.mode !== "with_equipment";
+
+  const serviceName = "Regular Cleaning";
+  const frequencyLabel =
+    draft.frequency === "once" ? "Once-off" : draft.frequency.charAt(0).toUpperCase() + draft.frequency.slice(1);
+  const prepaidVisits = quoteResponse?.isRecurring ? quoteResponse.occurrences.length : null;
+  const summaryMeta = [draft.suburb, formatDate(draft.date), draft.timeWindow.replace("-", " – ")]
+    .filter((part) => Boolean(part && part.trim()))
+    .join(" · ");
 
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      <SummaryPanel title="Visit details" onEdit={() => onEditStep(1)} editLabel="Edit schedule">
-        <SummaryLine label="Service" value="Regular Cleaning" />
-        <SummaryLine label="Date" value={formatDate(draft.date)} />
-        <SummaryLine label="Arrival window" value={draft.timeWindow.replace("-", " – ")} />
-        {draft.frequency !== "once" ? (
-          <SummaryLine label="Frequency" value={draft.frequency.charAt(0).toUpperCase() + draft.frequency.slice(1)} />
-        ) : (
-          <SummaryLine label="Frequency" value="Once-off" />
-        )}
-      </SummaryPanel>
-      <SummaryPanel title="Location" onEdit={() => onEditStep(2)} editLabel="Edit location">
-        <SummaryLine label="Suburb" value={draft.suburb} />
-        <SummaryLine label="Address" value={draft.address} />
-        {draft.notes.trim() ? <SummaryLine label="Access notes" value={draft.notes.trim()} /> : <p className="text-sm text-slate-500">No access notes added.</p>}
-      </SummaryPanel>
-      <SummaryPanel title="House details" onEdit={() => onEditStep(3)} editLabel="Edit house details">
-        <SummaryLine label="Bedrooms" value={String(draft.bedrooms)} />
-        <SummaryLine label="Bathrooms" value={String(draft.bathrooms)} />
-        <SummaryLine label="Extra rooms" value={String(draft.extraRooms)} />
-        <SummaryLine label="Estimated hours" value={String(quote.estimatedHours)} />
-      </SummaryPanel>
-      {quoteResponse?.isRecurring ? (
-        <SummaryPanel title="Recurring plan" onEdit={() => onEditStep(1)} editLabel="Edit schedule">
-          <SummaryLine label="Schedule" value={formatRecurrenceSummary(draft.frequency, draft.recurrence.weekdays)} />
-          <SummaryLine label="Scheduled visits" value={String(quoteResponse.occurrences.length)} />
-          <SummaryLine label="Series total" value={formatZar(quoteResponse.seriesTotalCents)} />
-        </SummaryPanel>
-      ) : null}
-      <SummaryPanel title="Premium add-ons" onEdit={() => onEditStep(3)} editLabel="Edit house details">
-        {selectedAddOns.length > 0 ? selectedAddOns.map((addOn) => (
-          <SummaryLine key={addOn.key} label={addOn.label} value={formatZar(addOn.priceCents)} />
-        )) : <p className="text-sm text-slate-500">No add-ons selected.</p>}
-      </SummaryPanel>
-      <SummaryPanel title="Cleaning supplies" onEdit={() => onEditStep(3)} editLabel="Edit house details">
-        <SummaryLine
-          label={suppliesLabel}
-          value={draft.equipment.mode === "with_equipment" ? formatZar(equipmentOption?.price_cents ?? quote.equipmentCents) : "R 0"}
-        />
-        {draft.equipment.mode === "with_equipment" ? (
-          <p className="mt-2 text-xs leading-5 text-slate-500">{(equipmentOption?.included_items ?? equipmentPackage.items).join(", ")}</p>
-        ) : null}
-      </SummaryPanel>
-      <SummaryPanel title="Cleaner preference" onEdit={() => onEditStep(4)} editLabel="Edit cleaner">
-        <SummaryLine label="Cleaners" value={String(quote.cleanerCount)} />
-        {selectedCleaners.length > 0 ? selectedCleaners.map((cleaner) => (
-          <SummaryLine key={cleaner.id} label={cleaner.name} value={`${cleaner.rating} rating`} />
-        )) : <p className="mt-2 text-sm text-slate-500">No preferred cleaner selected. Shalean will auto-assign the best available cleaner.</p>}
-      </SummaryPanel>
-      <SummaryPanel title="Price summary" className="lg:col-span-3">
-        <div className="space-y-2">
+    <div className="space-y-6">
+      <div className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
+        <h3 className="text-xl font-black leading-tight text-slate-950 sm:text-2xl">{serviceName}</h3>
+        {summaryMeta ? <p className="mt-2 break-words text-sm text-slate-600">{summaryMeta}</p> : null}
+        <p className="mt-1 break-words text-sm font-semibold text-slate-800">
+          {frequencyLabel}
+          {prepaidVisits ? ` · ${prepaidVisits} prepaid visits` : ""}
+        </p>
+      </div>
+
+      <section className="space-y-3">
+        <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">Booking details</h4>
+        <div className="grid gap-4 md:grid-cols-2">
+          <SummaryPanel title="Visit details" onEdit={() => onEditStep(1)}>
+            <SummaryLine label="Service" value={serviceName} />
+            <SummaryLine label="Date" value={formatDate(draft.date)} />
+            <SummaryLine label="Arrival window" value={draft.timeWindow.replace("-", " – ")} />
+            <SummaryLine label="Frequency" value={frequencyLabel} />
+          </SummaryPanel>
+          <SummaryPanel title="Location" onEdit={() => onEditStep(2)}>
+            <SummaryLine label="Suburb" value={draft.suburb} />
+            <SummaryLine label="Address" value={draft.address} />
+            {draft.notes.trim() ? <SummaryLine label="Access notes" value={draft.notes.trim()} /> : <p className="text-sm text-slate-500">No access notes added.</p>}
+          </SummaryPanel>
+          <SummaryPanel title="House details" onEdit={() => onEditStep(3)}>
+            <SummaryLine label="Bedrooms" value={String(draft.bedrooms)} />
+            <SummaryLine label="Bathrooms" value={String(draft.bathrooms)} />
+            <SummaryLine label="Extra rooms" value={String(draft.extraRooms)} />
+            <SummaryLine label="Estimated hours" value={String(quote.estimatedHours)} />
+          </SummaryPanel>
+          <SummaryPanel title="Cleaner preference" onEdit={() => onEditStep(4)}>
+            <SummaryLine label="Cleaners" value={String(quote.cleanerCount)} />
+            {selectedCleaners.length > 0 ? selectedCleaners.map((cleaner) => (
+              <SummaryLine key={cleaner.id} label={cleaner.name} value={`${cleaner.rating} rating`} />
+            )) : <p className="text-sm leading-6 text-slate-500">No preferred cleaner selected. Shalean will auto-assign the best available cleaner.</p>}
+          </SummaryPanel>
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">Extras</h4>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <SummaryPanel title="Premium add-ons" onEdit={() => onEditStep(3)}>
+            {selectedAddOns.length > 0 ? selectedAddOns.map((addOn) => (
+              <SummaryLine key={addOn.key} label={addOn.label} value={formatZar(addOn.priceCents)} />
+            )) : <p className="text-sm text-slate-500">No add-ons selected.</p>}
+          </SummaryPanel>
+          <SummaryPanel title="Cleaning supplies" onEdit={() => onEditStep(3)}>
+            <SummaryLine
+              label={suppliesLabel}
+              value={usesOwnSupplies ? "R 0" : formatZar(equipmentOption?.price_cents ?? quote.equipmentCents)}
+            />
+            {usesOwnSupplies ? null : (
+              <p className="text-xs leading-5 text-slate-500">{(equipmentOption?.included_items ?? equipmentPackage.items).join(", ")}</p>
+            )}
+          </SummaryPanel>
+          {quoteResponse?.isRecurring ? (
+            <SummaryPanel title="Recurring plan" onEdit={() => onEditStep(1)}>
+              <SummaryLine label="Schedule" value={formatRecurrenceSummary(draft.frequency, draft.recurrence.weekdays)} />
+              <SummaryLine label="Scheduled visits" value={String(quoteResponse.occurrences.length)} />
+              <SummaryLine label="Series total" value={formatZar(quoteResponse.seriesTotalCents)} />
+            </SummaryPanel>
+          ) : null}
+        </div>
+      </section>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
+        <h3 className="text-sm font-bold text-slate-950">Price summary</h3>
+        <div className="mt-4 space-y-2">
           {quote.lineItems.map((item) => (
             <div key={item.label} className="flex justify-between gap-3 text-sm">
               <span className="capitalize text-slate-600">{item.label}</span>
@@ -1668,11 +1695,11 @@ function BookingSummary({
             </div>
           ) : null}
         </div>
-        <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3">
-          <span className="text-sm font-semibold text-slate-600">Total</span>
-          <span className="text-lg font-black text-slate-950">{formatZar(quote.totalCents)}</span>
+        <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-4">
+          <span className="text-base font-semibold text-slate-700">Total</span>
+          <span className="text-2xl font-black text-slate-950 sm:text-3xl">{formatZar(quote.totalCents)}</span>
         </div>
-      </SummaryPanel>
+      </div>
     </div>
   );
 }
@@ -1728,12 +1755,12 @@ function SummaryPanel({
   className?: string;
 }) {
   return (
-    <div className={cn("rounded-lg border border-slate-200 bg-white p-4", className)}>
+    <div className={cn("flex h-full flex-col rounded-xl border border-slate-200 bg-white p-5", className)}>
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-bold text-slate-950">{title}</h3>
         {onEdit ? (
           <button
-            className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline"
+            className="shrink-0 text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline"
             onClick={onEdit}
             type="button"
           >
@@ -1748,9 +1775,9 @@ function SummaryPanel({
 
 function SummaryLine({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-3 text-sm">
-      <span className="text-slate-600">{label}</span>
-      <span className="font-semibold text-slate-950">{value}</span>
+    <div className="flex justify-between gap-4 text-sm">
+      <span className="min-w-0 break-words text-slate-600">{label}</span>
+      <span className="break-words text-right font-semibold text-slate-950">{value}</span>
     </div>
   );
 }
