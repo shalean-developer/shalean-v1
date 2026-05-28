@@ -275,6 +275,7 @@ export async function loadAdminDashboard() {
       preferredCleaners,
       autoAssignments,
     },
+    bookings: hydrated,
     recentBookings: hydrated.slice(0, 6),
     recentPayments: payments.slice(0, 6),
     declinedOffers: hydrated.flatMap((booking) => booking.cleanerRequests.filter((request) => request.status === "declined")),
