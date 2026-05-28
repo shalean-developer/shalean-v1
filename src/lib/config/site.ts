@@ -9,6 +9,21 @@ export const siteConfig = {
   serviceArea: "Cape Town, South Africa",
 };
 
+export const supportContact = {
+  callNumber: "087 153 5250",
+  callHref: "tel:+27871535250",
+  whatsappNumber: "082 591 5525",
+  whatsappHref: "https://wa.me/27825915525",
+};
+
+export function buildWhatsappLink(href: string, message?: string) {
+  if (!message) {
+    return href;
+  }
+
+  return `${href}?text=${encodeURIComponent(message)}`;
+}
+
 export const capeTownSuburbs = [
   "Sea Point",
   "Green Point",

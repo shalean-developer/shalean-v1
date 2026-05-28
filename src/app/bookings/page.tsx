@@ -22,7 +22,7 @@ export default async function BookingsPage() {
 
   return (
     <>
-      <DashboardHeader active="customer" />
+      <DashboardHeader active="bookings" />
       <main className="min-h-screen bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-6xl">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">

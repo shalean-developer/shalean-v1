@@ -1,24 +1,30 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { clearCleanerSession, getCleanerSession, getCurrentUser, getProfileForUser } from "@/lib/auth/server";
+import { getCurrentUser, getProfileForUser } from "@/lib/auth/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 
 type DashboardHeaderProps = {
-  active?: "admin" | "customer" | "cleaner";
+  active?: "dashboard" | "bookings" | "profile" | "support" | "admin" | "customer";
   theme?: "light" | "dark";
 };
 
 export async function DashboardHeader({ active, theme = "light" }: DashboardHeaderProps) {
-  const [user, cleanerSession] = await Promise.all([getCurrentUser(), getCleanerSession()]);
+  const user = await getCurrentUser();
   const profile = user ? await getProfileForUser(user.id) : null;
   const dark = theme === "dark";
+  const isCustomer = Boolean(user && profile?.role === "customer");
+  const isAdmin = Boolean(user && profile?.role === "admin");
+
+  // Treat the legacy "customer" active value as the Dashboard tab.
+  const activeKey = active === "customer" ? "dashboard" : active;
 
   const links = [
-    { href: "/dashboard", label: "Customer", key: "customer", show: Boolean(user && profile?.role === "customer") },
-    { href: "/bookings", label: "Bookings", key: "customer", show: Boolean(user && profile?.role === "customer") },
-    { href: "/cleaner", label: "Cleaner", key: "cleaner", show: Boolean(cleanerSession) },
-    { href: "/admin/dashboard", label: "Admin", key: "admin", show: Boolean(user && profile?.role === "admin") },
+    { href: "/dashboard", label: "Dashboard", key: "dashboard", show: isCustomer },
+    { href: "/bookings", label: "Bookings", key: "bookings", show: isCustomer },
+    { href: "/profile", label: "Profile", key: "profile", show: isCustomer },
+    { href: "/support", label: "Support", key: "support", show: isCustomer },
+    { href: "/admin/dashboard", label: "Admin", key: "admin", show: isAdmin },
   ];
 
   return (
@@ -37,7 +43,7 @@ export async function DashboardHeader({ active, theme = "light" }: DashboardHead
               href={link.href}
               className={cn(
                 "rounded-md px-3 py-2 text-sm font-bold",
-                active === link.key
+                activeKey === link.key
                   ? "bg-emerald-700 text-white"
                   : dark ? "text-slate-200 hover:bg-white/10" : "text-slate-700 hover:bg-slate-100",
               )}
@@ -45,21 +51,16 @@ export async function DashboardHeader({ active, theme = "light" }: DashboardHead
               {link.label}
             </Link>
           ))}
-          {!user && !cleanerSession ? (
+          {!user ? (
             <>
               <Link className={buttonClass(dark, false)} href="/admin/login">Login</Link>
               <Link className={buttonClass(dark, false)} href="/cleaner/login">Cleaner sign in</Link>
               <Link className={buttonClass(dark, true)} href="/book">Book service</Link>
             </>
           ) : null}
-          {user && !cleanerSession ? (
+          {user ? (
             <form action={signOutUserAction}>
               <button className={buttonClass(dark, false)} type="submit">Logout</button>
-            </form>
-          ) : null}
-          {cleanerSession ? (
-            <form action={signOutCleanerAction}>
-              <button className={buttonClass(dark, false)} type="submit">Cleaner sign out</button>
             </form>
           ) : null}
         </nav>
@@ -84,12 +85,5 @@ async function signOutUserAction() {
 
   const supabase = await createSupabaseServerClient();
   await supabase.auth.signOut();
-  redirect("/");
-}
-
-async function signOutCleanerAction() {
-  "use server";
-
-  await clearCleanerSession();
   redirect("/");
 }
