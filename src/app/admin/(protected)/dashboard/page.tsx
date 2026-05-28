@@ -81,9 +81,12 @@ export default async function AdminDashboardPage() {
         <AlertsIssuesCard alerts={model.alerts} />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-3 xl:items-stretch">
+      <section className="grid gap-4 xl:grid-cols-2 xl:items-stretch">
         <RecentActivityCard activity={model.recentActivity} />
         <TopAreasCard areas={model.topAreas} maxAreaCount={model.maxAreaCount} />
+      </section>
+
+      <section>
         <QuickActionsCard />
       </section>
     </div>
@@ -549,12 +552,12 @@ function TopAreasCard({
 
 function QuickActionsCard() {
   return (
-    <Card className="h-full border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
+    <Card className="border-slate-200 bg-white p-5 text-slate-900 shadow-sm">
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="text-lg font-bold">Quick actions</h2>
         <Badge className="border-slate-200 bg-slate-50 text-slate-700">Operations shortcuts</Badge>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {quickActions.map((action) => {
           const Icon = action.icon;
           return (
