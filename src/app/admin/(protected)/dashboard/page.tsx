@@ -187,7 +187,7 @@ function buildOverviewModel(dashboard: OverviewData) {
     .toSorted((left, right) => right.jobsInView - left.jobsInView)
     .slice(0, 6);
 
-  const alerts = [
+  const alerts: Array<{ title: string; detail: string; tone: "critical" | "warning" | "info" | "success" }> = [
     dashboard.stats.needsAssignment > 0
       ? { title: `${dashboard.stats.needsAssignment} bookings need cleaner assignment`, detail: "Urgent", tone: "critical" as const }
       : null,
