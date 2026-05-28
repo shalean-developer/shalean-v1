@@ -692,7 +692,20 @@ function renderStep({
         </div>
       );
       }
-    case 1:
+    case 1: {
+      const isRecurring = draft.frequency === "weekly" || draft.frequency === "fortnightly";
+      const arrivalWindowField = (
+        <ScheduleListbox
+          label="Arrival window"
+          value={draft.timeWindow}
+          onChange={(value) => update("timeWindow", value)}
+          options={[
+            { value: "08:00-12:00", label: "Morning (08:00 - 12:00)" },
+            { value: "12:00-16:00", label: "Afternoon (12:00 - 16:00)" },
+            { value: "16:00-19:00", label: "Evening (16:00 - 19:00)" },
+          ]}
+        />
+      );
       return (
         <FieldGrid title="Schedule" subtitle="Choose when you would like your cleaner to arrive.">
           <ScheduleListbox
@@ -707,24 +720,21 @@ function renderStep({
             ]}
           />
           <ScheduleDatePicker label="Preferred date" min={todayInJohannesburg()} value={draft.date} onChange={(value) => update("date", value)} helper="Pick today or any future date." />
-          <ScheduleListbox
-            label="Arrival window"
-            value={draft.timeWindow}
-            onChange={(value) => update("timeWindow", value)}
-            options={[
-              { value: "08:00-12:00", label: "Morning (08:00 - 12:00)" },
-              { value: "12:00-16:00", label: "Afternoon (12:00 - 16:00)" },
-              { value: "16:00-19:00", label: "Evening (16:00 - 19:00)" },
-            ]}
-          />
-          {draft.frequency === "weekly" || draft.frequency === "fortnightly" ? (
-            <WeekdaySelector
-              selectedWeekdays={draft.recurrence.weekdays}
-              onToggle={updateRecurrenceWeekday}
-            />
-          ) : null}
+          {isRecurring ? (
+            <div className="flex flex-col gap-4 md:col-span-2 md:flex-row md:items-start">
+              <WeekdaySelector
+                className="md:flex-1"
+                selectedWeekdays={draft.recurrence.weekdays}
+                onToggle={updateRecurrenceWeekday}
+              />
+              <div className="md:w-72 md:shrink-0">{arrivalWindowField}</div>
+            </div>
+          ) : (
+            arrivalWindowField
+          )}
         </FieldGrid>
       );
+    }
     case 2:
       return (
         <FieldGrid title="Location" subtitle="Tell us where your cleaner should go." icon={<MapPin />}>
@@ -1639,14 +1649,16 @@ function BookingSummary({
 function WeekdaySelector({
   selectedWeekdays,
   onToggle,
+  className,
 }: {
   selectedWeekdays: number[];
   onToggle: (weekday: number, enabled: boolean) => void;
+  className?: string;
 }) {
   return (
-    <div className="md:col-span-2">
+    <div className={cn("md:col-span-2", className)}>
       <span className="text-sm font-semibold text-slate-800">Recurring weekdays</span>
-      <div className="mt-2 flex flex-wrap gap-2">
+      <div className="mt-2 grid grid-cols-7 gap-2">
         {WEEKDAYS.map((day) => {
           const selected = selectedWeekdays.includes(day.value);
 
@@ -1654,8 +1666,10 @@ function WeekdaySelector({
             <button
               key={day.value}
               className={cn(
-                "h-10 rounded-full border px-3 text-sm font-semibold transition",
-                selected ? "border-emerald-700 bg-emerald-700 text-white" : "border-slate-200 bg-white text-slate-600",
+                "flex h-12 items-center justify-center rounded-full border px-1 text-sm font-semibold transition",
+                selected
+                  ? "border-emerald-700 bg-emerald-700 text-white"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300",
               )}
               onClick={() => onToggle(day.value, !selected)}
               type="button"
