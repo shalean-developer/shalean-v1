@@ -1,6 +1,9 @@
 import type React from "react";
-import { Bell, Leaf, Search } from "lucide-react";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { Bell, ChevronDown, Leaf, Search } from "lucide-react";
 import { AdminRouteNav } from "@/components/admin/AdminRouteNav";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type AdminStats = {
   openBookings: number;
@@ -8,6 +11,15 @@ type AdminStats = {
   payoutReadyCents: number;
   paymentEvents: number;
 };
+
+const adminMenuLinks = [
+  { href: "/admin/dashboard", label: "Dashboard" },
+  { href: "/admin/bookings", label: "Bookings" },
+  { href: "/admin/customers", label: "Customers" },
+  { href: "/admin/cleaners", label: "Cleaners" },
+  { href: "/admin/payments", label: "Payments" },
+  { href: "/admin/settings", label: "Settings" },
+];
 
 export function AdminLayoutShell({
   adminName,
@@ -19,6 +31,7 @@ export function AdminLayoutShell({
   children: React.ReactNode;
 }) {
   const adminInitial = adminName.trim().charAt(0).toUpperCase() || "A";
+  const firstName = adminName.trim().split(/\s+/)[0] || "Admin";
 
   return (
     <main className="min-h-screen bg-[#f3f5f7] text-slate-950">
@@ -52,15 +65,45 @@ export function AdminLayoutShell({
               >
                 <Bell className="h-4 w-4" />
               </button>
-              <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">
-                  {adminInitial}
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-slate-900">{adminName}</p>
-                  <p className="text-xs text-slate-500">Administrator</p>
+              <details className="group relative">
+                <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-left transition hover:bg-slate-50">
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">
+                    {adminInitial}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-900">{firstName}</p>
+                    <p className="text-xs text-slate-500">Administrator</p>
+                  </div>
+                  <ChevronDown className="h-4 w-4 text-slate-400 transition group-open:rotate-180" />
+                </summary>
+                <div className="absolute right-0 z-20 mt-2 w-52 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                  <div className="mb-1 border-b border-slate-100 px-2 pb-2">
+                    <p className="truncate text-sm font-semibold text-slate-900">{firstName}</p>
+                    <p className="text-xs text-slate-500">Administrator</p>
+                  </div>
+                  <nav className="space-y-1">
+                    {adminMenuLinks.map((item) => (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className="block rounded-md px-2 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                  </nav>
+                  <div className="mt-2 border-t border-slate-100 pt-2">
+                    <form action={signOutAdminAction}>
+                      <button
+                        className="w-full rounded-md px-2 py-1.5 text-left text-sm font-semibold text-rose-700 transition hover:bg-rose-50"
+                        type="submit"
+                      >
+                        Logout
+                      </button>
+                    </form>
+                  </div>
                 </div>
-              </div>
+              </details>
             </div>
           </div>
         </div>
@@ -83,4 +126,12 @@ export function AdminPageHeading({ eyebrow, title, children }: { eyebrow: string
       {children ? <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">{children}</p> : null}
     </div>
   );
+}
+
+async function signOutAdminAction() {
+  "use server";
+
+  const supabase = await createSupabaseServerClient();
+  await supabase.auth.signOut();
+  redirect("/admin/login");
 }
