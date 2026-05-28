@@ -3,17 +3,55 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Banknote, BarChart3, CalendarRange, Menu, Settings, ShieldCheck, Users, UsersRound, X } from "lucide-react";
+import {
+  Banknote,
+  BarChart3,
+  CalendarRange,
+  CircleHelp,
+  Home,
+  Menu,
+  Settings,
+  ShieldCheck,
+  Users,
+  UsersRound,
+  X,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-const adminLinks = [
-  { href: "/admin/dashboard", label: "Dashboard", icon: BarChart3 },
-  { href: "/admin/bookings", label: "Bookings", icon: CalendarRange },
-  { href: "/admin/customers", label: "Customers", icon: Users },
-  { href: "/admin/cleaners", label: "Cleaners", icon: UsersRound },
-  { href: "/admin/payments", label: "Payments", icon: Banknote },
-  { href: "/admin/settings", label: "Settings", icon: Settings },
+const navGroups = [
+  {
+    title: "Overview",
+    items: [
+      { href: "/admin/dashboard", label: "Overview", icon: Home },
+    ],
+  },
+  {
+    title: "Operations",
+    items: [
+      { href: "/admin/bookings", label: "Bookings", icon: CalendarRange },
+      { href: "/admin/customers", label: "Customers", icon: Users },
+      { href: "/admin/cleaners", label: "Cleaners", icon: UsersRound },
+    ],
+  },
+  {
+    title: "Finance",
+    items: [
+      { href: "/admin/payments", label: "Payments", icon: Banknote },
+    ],
+  },
+  {
+    title: "Reports",
+    items: [
+      { href: "/admin/dashboard#reports", label: "Reports", icon: BarChart3 },
+    ],
+  },
+  {
+    title: "Settings",
+    items: [
+      { href: "/admin/settings", label: "Settings", icon: Settings },
+    ],
+  },
 ];
 
 type AdminStats = {
@@ -26,13 +64,17 @@ type AdminStats = {
 export function AdminRouteNav({ stats }: { stats: AdminStats }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const activeRoute = useMemo(() => adminLinks.find((link) => pathname === link.href || pathname.startsWith(`${link.href}/`)), [pathname]);
+  const allLinks = useMemo(() => navGroups.flatMap((group) => group.items), []);
+  const activeRoute = useMemo(
+    () => allLinks.find((link) => isActiveLink(pathname, link.href)),
+    [allLinks, pathname],
+  );
 
   return (
     <>
       <div className="lg:hidden">
         <button
-          className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           type="button"
           onClick={() => setDrawerOpen(true)}
         >
@@ -51,9 +93,9 @@ export function AdminRouteNav({ stats }: { stats: AdminStats }) {
             aria-label="Close menu"
             onClick={() => setDrawerOpen(false)}
           />
-          <div className="relative h-full w-[min(21rem,90vw)] border-r border-slate-200 bg-white p-4 shadow-2xl">
+          <div className="relative h-full w-[min(21rem,90vw)] border-r border-slate-200 bg-[#f8fafc] p-4 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-700">Admin navigation</p>
+              <p className="text-sm font-semibold text-slate-700">Shalean navigation</p>
               <button
                 className="rounded-md border border-slate-300 p-2 text-slate-700 transition hover:bg-slate-100"
                 type="button"
@@ -90,36 +132,47 @@ function SidebarBody({
   onNavigate?: () => void;
 }) {
   return (
-    <div className="space-y-4 lg:sticky lg:top-24">
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Admin workspace</p>
-        <p className="mt-2 text-lg font-bold text-slate-900">Operations console</p>
-        <p className="mt-1 text-sm text-slate-600">Route-level tools grouped for daily operations.</p>
+    <div className="space-y-4 lg:sticky lg:top-4">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Shalean Cleaning Services</p>
+        <p className="mt-2 text-lg font-bold text-slate-900">Admin workspace</p>
+        <p className="mt-1 text-sm text-slate-600">Operations control center</p>
       </div>
-      <nav className="rounded-xl border border-slate-200 bg-white p-2">
-        {adminLinks.map((link) => {
-          const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
-          const Icon = link.icon;
+      <nav className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="space-y-4">
+          {navGroups.map((group) => (
+            <div key={group.title}>
+              <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                {group.title}
+              </p>
+              <div className="space-y-1">
+                {group.items.map((link) => {
+                  const active = isActiveLink(pathname, link.href);
+                  const Icon = link.icon;
 
-          return (
-            <Link
-              key={link.href}
-              className={cn(
-                "mb-1 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition last:mb-0",
-                active
-                  ? "bg-emerald-600/90 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.7)]"
-                  : "text-slate-700 hover:bg-slate-100 hover:text-slate-900",
-              )}
-              href={link.href}
-              onClick={onNavigate}
-            >
-              <Icon className="h-4 w-4" />
-              {link.label}
-            </Link>
-          );
-        })}
+                  return (
+                    <Link
+                      key={link.href}
+                      className={cn(
+                        "flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition",
+                        active
+                          ? "border border-emerald-100 bg-emerald-50 text-emerald-800"
+                          : "border border-transparent text-slate-700 hover:bg-slate-50 hover:text-slate-900",
+                      )}
+                      href={link.href}
+                      onClick={onNavigate}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {link.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
       </nav>
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Live pulse</p>
         <dl className="mt-3 space-y-3 text-sm text-slate-700">
           <MetricRow label="Open bookings" value={String(stats.openBookings)} />
@@ -127,6 +180,13 @@ function SidebarBody({
           <MetricRow label="Payment events" value={String(stats.paymentEvents)} />
           <MetricRow label="Role" value="Admin" icon={ShieldCheck} />
         </dl>
+      </div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+          <CircleHelp className="h-4 w-4 text-slate-500" />
+          Need help?
+        </p>
+        <p className="mt-1 text-xs text-slate-500">View guides or contact support.</p>
       </div>
     </div>
   );
@@ -150,4 +210,9 @@ function MetricRow({
       <span className="font-semibold text-slate-900">{value}</span>
     </div>
   );
+}
+
+function isActiveLink(pathname: string, href: string) {
+  const normalizedHref = href.split("#")[0] ?? href;
+  return pathname === normalizedHref || pathname.startsWith(`${normalizedHref}/`);
 }
