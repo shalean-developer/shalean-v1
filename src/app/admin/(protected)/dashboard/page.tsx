@@ -60,7 +60,7 @@ export default async function AdminDashboardPage() {
         </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <section className="grid grid-flow-col auto-cols-[minmax(180px,1fr)] gap-3 overflow-x-auto pb-1">
         {model.kpis.map((kpi) => (
           <KpiCard key={kpi.label} {...kpi} />
         ))}
@@ -325,7 +325,7 @@ function KpiCard({ label, value, detail, icon: Icon, tone }: Kpi) {
   }[tone];
 
   return (
-    <Card className="border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
+    <Card className="h-full border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-slate-600">{label}</p>
