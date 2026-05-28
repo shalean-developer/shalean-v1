@@ -108,7 +108,7 @@ function buildOverviewModel(dashboard: OverviewData) {
   const yesterdayIso = shiftDateKey(todayIso, -1);
   const weekStartIso = shiftDateKey(todayIso, -6);
   const monthStartIso = `${todayIso.slice(0, 8)}01`;
-  const bookings = dashboard.recentBookings;
+  const bookings = dashboard.bookings;
   const bookingsById = new Map(bookings.map((booking) => [booking.id, booking]));
   const todayBookings = bookings.filter((booking) => booking.booking_date === todayIso).toSorted((left, right) => left.booking_time.localeCompare(right.booking_time));
   const yesterdayBookings = bookings.filter((booking) => booking.booking_date === yesterdayIso);
