@@ -1,5 +1,10 @@
 -- Merge the separate "ironing" and "laundry" regular-cleaning add-ons into a
--- single combined "Laundry & Ironing" add-on.
+-- single combined "Laundry & Ironing" add-on offered going forward.
+--
+-- Historical booking_addons rows are intentionally left untouched: they store
+-- their own label/price_cents snapshot (no FK to service_addons), so retiring
+-- the catalog rows does not affect past bookings, and we preserve them exactly
+-- as they were sold.
 
 -- 1. Upsert the combined add-on catalog row.
 insert into public.service_addons
@@ -26,24 +31,7 @@ on conflict (service_slug, key) do update set
   active = true,
   updated_at = now();
 
--- 2. Remap existing booking add-on selections from the old keys, avoiding
---    collisions with the unique (booking_id, addon_key) constraint.
-update public.booking_addons as ba
-set addon_key = 'laundryIroning'
-where ba.addon_key in ('ironing', 'laundry')
-  and not exists (
-    select 1
-    from public.booking_addons existing
-    where existing.booking_id = ba.booking_id
-      and existing.addon_key = 'laundryIroning'
-  );
-
--- Remove any remaining legacy rows that could not be remapped (duplicates where
--- the combined key already exists for that booking).
-delete from public.booking_addons
-where addon_key in ('ironing', 'laundry');
-
--- 3. Retire the old catalog add-ons.
+-- 2. Retire the old catalog add-ons so the wizard no longer offers them.
 delete from public.service_addons
 where service_slug = 'regular-cleaning'
   and key in ('ironing', 'laundry');
