@@ -79,6 +79,41 @@ export function BookingWizard() {
     const supabase = createSupabaseBrowserClient();
     let mounted = true;
 
+    async function hydrateProfile(authenticated: boolean) {
+      if (!authenticated) {
+        if (mounted) setIsCustomerProfileReady(false);
+        return;
+      }
+
+      let mergedDraft = cachedDraft;
+      try {
+        const response = await fetch("/api/auth/customer-profile");
+        if (response.ok) {
+          const payload = (await response.json()) as {
+            profile?: { fullName?: string; email?: string; phone?: string };
+          };
+          const profile = payload.profile;
+          if (profile) {
+            mergedDraft = {
+              ...cachedDraft,
+              customer: {
+                name: cachedDraft.customer.name || (profile.fullName ?? ""),
+                email: cachedDraft.customer.email || (profile.email ?? ""),
+                phone: cachedDraft.customer.phone || (profile.phone ?? ""),
+              },
+            };
+            saveDraft(mergedDraft);
+          }
+        }
+      } catch {
+        mergedDraft = cachedDraft;
+      }
+
+      if (mounted) {
+        setIsCustomerProfileReady(isCustomerIdentityComplete(mergedDraft));
+      }
+    }
+
     supabase.auth
       .getSession()
       .then(({ data }) => {
@@ -86,6 +121,7 @@ export function BookingWizard() {
         const authenticated = Boolean(data.session?.user);
         setIsCustomerAuthenticated(authenticated);
         setIsCustomerProfileReady(authenticated && isCustomerIdentityComplete(cachedDraft));
+        void hydrateProfile(authenticated);
       })
       .catch(() => {
         if (!mounted) return;
@@ -102,6 +138,7 @@ export function BookingWizard() {
       setIsCustomerAuthenticated(authenticated);
       setIsCustomerProfileReady(authenticated && isCustomerIdentityComplete(cachedDraft));
       setIsAuthChecking(false);
+      void hydrateProfile(authenticated);
     });
 
     return () => {
@@ -352,9 +389,7 @@ export function BookingWizard() {
             updateRecurrenceWeekday,
             updateCleanerCount,
             toggleCleaner,
-            onCheckout: startCheckout,
-            isCheckingOut,
-            isQuoteLoading,
+            onEditStep: setStep,
             quoteError,
             quoteResponse: serverQuote,
             isCustomerAuthenticated,
@@ -365,18 +400,32 @@ export function BookingWizard() {
           })}
         </div>
 
-        <div className="mt-6 flex items-center justify-between border-t border-slate-200 pt-5">
-          <Button variant="outline" onClick={() => setStep((current) => Math.max(0, current - 1))} disabled={step === 0}>
+        <div className="mt-6 flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <Button
+            variant="outline"
+            className="w-full sm:w-auto"
+            onClick={() => setStep((current) => Math.max(0, current - 1))}
+            disabled={step === 0}
+          >
             <ChevronLeft className="h-4 w-4" />
             Back
           </Button>
-          <div className="flex items-center gap-3">
-            <Button variant="outline" onClick={() => { resetDraft(); setStep(0); setErrors([]); }} type="button">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Button
+              variant="ghost"
+              className="w-full sm:w-auto"
+              onClick={() => { resetDraft(); setStep(0); setErrors([]); }}
+              type="button"
+            >
               Start new booking
             </Button>
-            <Button onClick={step === steps.length - 1 ? startCheckout : nextStep} disabled={!canContinue}>
-            {step === steps.length - 1 ? (isCheckingOut ? "Opening Paystack" : "Confirm checkout") : "Continue"}
-            <ChevronRight className="h-4 w-4" />
+            <Button
+              className="w-full sm:w-auto"
+              onClick={step === steps.length - 1 ? startCheckout : nextStep}
+              disabled={!canContinue}
+            >
+              {step === steps.length - 1 ? (isCheckingOut ? "Opening Paystack" : "Confirm checkout") : "Continue"}
+              <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -402,7 +451,8 @@ export function BookingWizard() {
             <dd className="text-lg font-semibold">{quote.estimatedHours}</dd>
           </div>
         </dl>
-        <div className="mt-5 space-y-2 text-sm">
+        <p className="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-400">Price breakdown</p>
+        <div className="mt-2 space-y-2 text-sm">
           {quote.lineItems.map((item) => (
             <div key={item.label} className="flex justify-between gap-3 text-slate-200">
               <span className="capitalize">{item.label}</span>
@@ -416,8 +466,8 @@ export function BookingWizard() {
             </div>
           ) : null}
         </div>
-        <div className="mt-5 border-t border-white/15 pt-4 text-sm text-slate-300">
-          Checkout uses the latest server quote. Cleaner earnings are calculated separately after payment.
+        <div className="mt-5 border-t border-white/15 pt-4 text-xs leading-5 text-slate-400">
+          Your final checkout uses the latest confirmed quote.
         </div>
       </aside>
     </section>
@@ -543,9 +593,7 @@ function renderStep({
   updateRecurrenceWeekday,
   updateCleanerCount,
   toggleCleaner,
-  onCheckout,
-  isCheckingOut,
-  isQuoteLoading,
+  onEditStep,
   quoteError,
   quoteResponse,
   isCustomerAuthenticated,
@@ -564,9 +612,7 @@ function renderStep({
   updateRecurrenceWeekday: (weekday: number, enabled: boolean) => void;
   updateCleanerCount: (count: number) => void;
   toggleCleaner: (cleanerId: string) => void;
-  onCheckout: () => void;
-  isCheckingOut: boolean;
-  isQuoteLoading: boolean;
+  onEditStep: (step: number) => void;
   quoteError: string | null;
   quoteResponse: RegularCleaningQuoteResponse | null;
   isCustomerAuthenticated: boolean;
@@ -604,40 +650,60 @@ function renderStep({
 
       return (
         <div>
-          <StepTitle icon={<Sparkles />} title="Choose a service" text="Start with the clean type. Pricing and dispatch logic adapt from here." />
+          <StepTitle icon={<Sparkles />} title="Choose a service" text="Choose the cleaning service you need. More services will be available soon." />
           <div className="grid gap-3 md:grid-cols-2">
-            {[regularServiceCard].map((item) => (
-              <button
-                key={item.slug}
-                className={cn(
-                  "rounded-lg border p-4 text-left transition hover:border-emerald-500",
-                  draft.serviceSlug === item.slug ? "border-emerald-700 bg-emerald-50" : "border-slate-200 bg-white",
-                )}
-                onClick={() => update("serviceSlug", item.slug)}
-                type="button"
-              >
-                <span className="text-base font-semibold text-slate-950">{item.title}</span>
-                <span className="mt-2 block text-sm leading-6 text-slate-600">{item.summary}</span>
-              </button>
-            ))}
+            {[regularServiceCard].map((item) => {
+              const selected = draft.serviceSlug === item.slug;
+
+              return (
+                <button
+                  key={item.slug}
+                  className={cn(
+                    "group relative rounded-xl border p-5 text-left transition hover:border-emerald-500 hover:shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700",
+                    selected ? "border-emerald-700 bg-emerald-50 ring-1 ring-emerald-700" : "border-slate-200 bg-white",
+                  )}
+                  onClick={() => update("serviceSlug", item.slug)}
+                  aria-pressed={selected}
+                  type="button"
+                >
+                  <span className="flex items-start justify-between gap-3">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+                      <Sparkles className="h-5 w-5" />
+                    </span>
+                    {selected ? (
+                      <span className="flex items-center gap-1 rounded-full bg-emerald-700 px-2.5 py-1 text-[11px] font-bold text-white">
+                        <Check className="h-3.5 w-3.5" />
+                        Selected
+                      </span>
+                    ) : (
+                      <span className="rounded-full border border-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-500">
+                        Available
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-4 block text-base font-bold text-slate-950">{item.title}</span>
+                  <span className="mt-1 block text-sm leading-6 text-slate-600">{item.summary}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       );
       }
     case 1:
       return (
-        <FieldGrid title="Schedule">
+        <FieldGrid title="Schedule" subtitle="Choose when you would like your cleaner to arrive.">
           <Select label="Frequency" value={draft.frequency} onChange={(value) => update("frequency", value as BookingDraft["frequency"])}>
             <option value="once">Once-off</option>
             <option value="weekly">Weekly</option>
             <option value="fortnightly">Fortnightly</option>
             <option value="monthly">Monthly</option>
           </Select>
-          <Input label="Preferred date" type="date" min={todayInJohannesburg()} value={draft.date} onChange={(value) => update("date", value)} />
+          <Input label="Preferred date" type="date" min={todayInJohannesburg()} value={draft.date} onChange={(value) => update("date", value)} helper="Pick today or any future date." />
           <Select label="Arrival window" value={draft.timeWindow} onChange={(value) => update("timeWindow", value)}>
-            <option value="08:00-12:00">08:00 - 12:00</option>
-            <option value="12:00-16:00">12:00 - 16:00</option>
-            <option value="16:00-19:00">16:00 - 19:00</option>
+            <option value="08:00-12:00">Morning (08:00 - 12:00)</option>
+            <option value="12:00-16:00">Afternoon (12:00 - 16:00)</option>
+            <option value="16:00-19:00">Evening (16:00 - 19:00)</option>
           </Select>
           {draft.frequency === "weekly" || draft.frequency === "fortnightly" ? (
             <WeekdaySelector
@@ -649,32 +715,34 @@ function renderStep({
       );
     case 2:
       return (
-        <FieldGrid title="Location">
+        <FieldGrid title="Location" subtitle="Tell us where your cleaner should go." icon={<MapPin />}>
           <Select label="Cape Town suburb" value={draft.suburb} onChange={(value) => update("suburb", value)}>
             {capeTownSuburbs.map((suburb) => (
               <option key={suburb} value={suburb}>{suburb}</option>
             ))}
           </Select>
-          <Input label="Street address" value={draft.address} onChange={(value) => update("address", value)} placeholder="Start typing your address" />
+          <Input
+            label="Street address"
+            value={draft.address}
+            onChange={(value) => update("address", value)}
+            placeholder="123 Main Road, Apartment 4B"
+            helper="Start typing your address and select it from the list."
+          />
           <label className="md:col-span-2">
-            <span className="text-sm font-semibold text-slate-800">Access notes</span>
+            <span className="text-sm font-semibold text-slate-800">Access notes <span className="font-normal text-slate-400">(optional)</span></span>
             <textarea
               className="mt-2 min-h-24 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-700"
               value={draft.notes}
               onChange={(event) => update("notes", event.target.value)}
-              placeholder="Gate code, parking, pets, or anything the cleaner should know before arrival"
+              placeholder="Gate code, parking, pets, or anything the cleaner should know."
             />
           </label>
-          <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600 md:col-span-2">
-            <MapPin className="mb-2 h-5 w-5 text-emerald-700" />
-            Google Maps autocomplete can plug into this field with the persisted address model already in place.
-          </div>
         </FieldGrid>
       );
     case 3:
       return (
         <div>
-          <StepTitle title="House details" text="Choose rooms, premium add-ons, and whether Shalean should bring professional equipment." />
+          <StepTitle title="House details" text="Tell us about your home and choose any extras you would like." />
           <div className="grid gap-4 sm:grid-cols-3">
             <Input label="Bedrooms" type="number" value={String(draft.bedrooms)} onChange={(value) => update("bedrooms", Number(value))} />
             <Input label="Bathrooms" type="number" value={String(draft.bathrooms)} onChange={(value) => update("bathrooms", Number(value))} />
@@ -713,7 +781,7 @@ function renderStep({
                       </span>
                     </span>
                     <span className="mt-3 block text-xs font-semibold text-slate-500">
-                      Adds about {addOn.durationHours}h workload
+                      Adds extra cleaning time
                     </span>
                   </button>
                 );
@@ -721,23 +789,27 @@ function renderStep({
             </div>
           </div>
 
-          <div className="mt-6 grid gap-3 md:grid-cols-2">
-            <EquipmentCard
-              active={draft.equipment.mode === "with_equipment"}
-              mode="with_equipment"
-              onSelect={updateEquipmentMode}
-              title={withEquipmentOption?.label ?? "With Equipment"}
-              price={formatZar(withEquipmentOption?.price_cents ?? equipmentPackage.priceCents)}
-              text={withEquipmentOption?.description ?? "Shalean supplies vacuum cleaner, mop & bucket, chemicals, cloths, and professional tools."}
-            />
-            <EquipmentCard
-              active={draft.equipment.mode === "without_equipment"}
-              mode="without_equipment"
-              onSelect={updateEquipmentMode}
-              title={withoutEquipmentOption?.label ?? "Without Equipment"}
-              price={formatZar(withoutEquipmentOption?.price_cents ?? 0)}
-              text={withoutEquipmentOption?.description ?? "Use this if your home already has suitable cleaning equipment and products available."}
-            />
+          <div className="mt-7">
+            <h3 className="text-base font-bold text-slate-950">Cleaning supplies</h3>
+            <p className="mt-1 text-sm text-slate-600">Choose whether Shalean brings supplies or you provide your own.</p>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <EquipmentCard
+                active={draft.equipment.mode === "with_equipment"}
+                mode="with_equipment"
+                onSelect={updateEquipmentMode}
+                title="Shalean brings supplies"
+                price={formatZar(withEquipmentOption?.price_cents ?? equipmentPackage.priceCents)}
+                text={withEquipmentOption?.description ?? "Shalean supplies vacuum cleaner, mop & bucket, chemicals, cloths, and professional tools."}
+              />
+              <EquipmentCard
+                active={draft.equipment.mode === "without_equipment"}
+                mode="without_equipment"
+                onSelect={updateEquipmentMode}
+                title="I have my own supplies"
+                price={formatZar(withoutEquipmentOption?.price_cents ?? 0)}
+                text={withoutEquipmentOption?.description ?? "Use this if your home already has suitable cleaning equipment and products available."}
+              />
+            </div>
           </div>
         </div>
       );
@@ -757,40 +829,23 @@ function renderStep({
     case 5:
       return (
         <div>
-          <StepTitle title="Review booking" text="Check the visit details, cleaner preference, extras, equipment, recurrence, and latest server quote before checkout." />
-          <BookingSummary draft={draft} quote={quote} catalog={regularCatalog} quoteResponse={quoteResponse} />
+          <StepTitle title="Review booking" text="Check everything looks right before you continue to checkout." />
+          <BookingSummary draft={draft} quote={quote} catalog={regularCatalog} quoteResponse={quoteResponse} onEditStep={onEditStep} />
         </div>
       );
     case 6:
     default:
-      if (!isCustomerAuthenticated || !isCustomerProfileReady) {
-        return (
-          <div>
-            <StepTitle icon={<CreditCard />} title="Sign in before checkout" text="Your booking draft is saved. Log in or create an account to continue to secure Paystack payment." />
-            <CustomerAuthGate
-              draft={draft}
-              isChecking={isAuthChecking}
-              isAuthenticated={isCustomerAuthenticated}
-              onAuthChange={onAuthChange}
-              onProfileReadyChange={onProfileReadyChange}
-            />
-          </div>
-        );
-      }
-
       return (
-        <div className="flex min-h-[360px] flex-col items-start justify-center">
-          <StepTitle icon={<CreditCard />} title="Secure checkout" text="The booking is ready for Paystack initialization with a server-side secret key and idempotency-ready metadata." />
-          {quoteError ? <p className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{quoteError}</p> : null}
-          {quoteResponse?.isRecurring ? (
-            <p className="mb-4 max-w-xl rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
-              Checkout will charge {formatZar(quoteResponse.seriesTotalCents)} for {quoteResponse.occurrences.length} scheduled Regular Cleaning visits.
-            </p>
-          ) : null}
-          <Button size="lg" onClick={onCheckout} disabled={isCheckingOut}>
-            {isCheckingOut ? "Opening Paystack" : isQuoteLoading ? "Refreshing quote" : "Prepare Paystack payment"}
-          </Button>
-        </div>
+        <CheckoutStep
+          draft={draft}
+          isChecking={isAuthChecking}
+          isAuthenticated={isCustomerAuthenticated}
+          isProfileReady={isCustomerProfileReady}
+          quoteError={quoteError}
+          quoteResponse={quoteResponse}
+          onAuthChange={onAuthChange}
+          onProfileReadyChange={onProfileReadyChange}
+        />
       );
   }
 }
@@ -869,16 +924,196 @@ function isUuid(value: unknown): value is string {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-function CustomerAuthGate({
+function CheckoutStep({
   draft,
   isChecking,
   isAuthenticated,
+  isProfileReady,
+  quoteError,
+  quoteResponse,
   onAuthChange,
   onProfileReadyChange,
 }: {
   draft: BookingDraft;
   isChecking: boolean;
   isAuthenticated: boolean;
+  isProfileReady: boolean;
+  quoteError: string | null;
+  quoteResponse: RegularCleaningQuoteResponse | null;
+  onAuthChange: (authenticated: boolean) => void;
+  onProfileReadyChange: (ready: boolean) => void;
+}) {
+  if (isChecking) {
+    return (
+      <div>
+        <StepTitle icon={<CreditCard />} title="Complete your details" text="Loading your account details…" />
+        <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm text-slate-500">Checking your account…</div>
+      </div>
+    );
+  }
+
+  if (isAuthenticated) {
+    return (
+      <div>
+        <StepTitle icon={<CreditCard />} title="Complete your details" text="You’re signed in. Please confirm your details before payment." />
+        <ConfirmDetails
+          draft={draft}
+          isProfileReady={isProfileReady}
+          quoteError={quoteError}
+          quoteResponse={quoteResponse}
+          onProfileReadyChange={onProfileReadyChange}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <StepTitle icon={<CreditCard />} title="Sign in or create an account" text="Sign in or create an account to continue. Your booking details are saved." />
+      <SignInOrSignUp
+        draft={draft}
+        onAuthChange={onAuthChange}
+        onProfileReadyChange={onProfileReadyChange}
+      />
+    </div>
+  );
+}
+
+function ConfirmDetails({
+  draft,
+  isProfileReady,
+  quoteError,
+  quoteResponse,
+  onProfileReadyChange,
+}: {
+  draft: BookingDraft;
+  isProfileReady: boolean;
+  quoteError: string | null;
+  quoteResponse: RegularCleaningQuoteResponse | null;
+  onProfileReadyChange: (ready: boolean) => void;
+}) {
+  const [isEditing, setIsEditing] = useState(!isProfileReady);
+  const [fullName, setFullName] = useState(draft.customer.name);
+  const [email, setEmail] = useState(draft.customer.email);
+  const [phone, setPhone] = useState(draft.customer.phone);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const candidate = { ...draft, customer: { name: fullName, email, phone } };
+  const identityComplete = isCustomerIdentityComplete(candidate);
+
+  async function saveDetails(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setMessage(null);
+
+    try {
+      const profileResult = await fetch("/api/auth/customer-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fullName, email, phone }),
+      });
+
+      if (!profileResult.ok) {
+        throw new Error("Could not save your details. Please check them and try again.");
+      }
+
+      saveDraft({ ...draft, customer: { name: fullName, email, phone } });
+      onProfileReadyChange(true);
+      setIsEditing(false);
+      setMessage("Details saved. You can now confirm checkout.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save your details.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+      <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">
+          You’re signed in. Please confirm your details before payment.
+        </div>
+
+        {quoteError ? (
+          <p className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{quoteError}</p>
+        ) : null}
+
+        {quoteResponse?.isRecurring ? (
+          <p className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+            Checkout will cover {formatZar(quoteResponse.seriesTotalCents)} for {quoteResponse.occurrences.length} scheduled visits.
+          </p>
+        ) : null}
+
+        {isEditing ? (
+          <form onSubmit={saveDetails} className="mt-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <Input label="Full name" value={fullName} onChange={setFullName} />
+              <Input label="Phone number" value={phone} onChange={setPhone} placeholder="e.g. 082 123 4567" />
+              <div className="md:col-span-2">
+                <Input label="Email" type="email" value={email} onChange={setEmail} />
+              </div>
+            </div>
+            {message ? (
+              <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-slate-700">{message}</div>
+            ) : null}
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button type="submit" disabled={isSubmitting || !identityComplete}>
+                {isSubmitting ? "Saving…" : "Save details"}
+              </Button>
+              {isProfileReady ? (
+                <Button variant="outline" type="button" onClick={() => { setIsEditing(false); setMessage(null); }}>
+                  Cancel
+                </Button>
+              ) : null}
+            </div>
+          </form>
+        ) : (
+          <div className="mt-4">
+            <dl className="divide-y divide-slate-100">
+              <DetailRow label="Full name" value={draft.customer.name || "—"} />
+              <DetailRow label="Email" value={draft.customer.email || "—"} />
+              <DetailRow label="Phone number" value={draft.customer.phone || "—"} />
+            </dl>
+            {message ? (
+              <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-slate-700">{message}</div>
+            ) : null}
+            <button
+              className="mt-4 text-sm font-semibold text-emerald-700 hover:text-emerald-800 hover:underline"
+              onClick={() => setIsEditing(true)}
+              type="button"
+            >
+              Edit details
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
+        <h3 className="font-bold">Your booking is saved</h3>
+        <p className="mt-2 leading-6">
+          Your service, schedule, location, add-ons, cleaning supplies, cleaner preference, and latest quote all stay in place through to payment.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-2.5">
+      <dt className="text-sm text-slate-600">{label}</dt>
+      <dd className="text-sm font-semibold text-slate-950">{value}</dd>
+    </div>
+  );
+}
+
+function SignInOrSignUp({
+  draft,
+  onAuthChange,
+  onProfileReadyChange,
+}: {
+  draft: BookingDraft;
   onAuthChange: (authenticated: boolean) => void;
   onProfileReadyChange: (ready: boolean) => void;
 }) {
@@ -891,12 +1126,9 @@ function CustomerAuthGate({
   const [message, setMessage] = useState<string | null>(null);
   const candidateDraft = { ...draft, customer: { name: fullName, email, phone } };
   const identityComplete = isCustomerIdentityComplete(candidateDraft);
-  const profileMissing = isAuthenticated && !identityComplete;
-  const canSubmitAuth = isAuthenticated
-    ? identityComplete
-    : mode === "login"
-      ? email.includes("@") && password.length > 0
-      : identityComplete && password.length >= 6;
+  const canSubmit = mode === "login"
+    ? email.includes("@") && password.length > 0
+    : identityComplete && password.length >= 6;
 
   async function submitAuth(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -905,20 +1137,18 @@ function CustomerAuthGate({
 
     try {
       const supabase = createSupabaseBrowserClient();
-      const result = isAuthenticated
-        ? { error: null }
-        : mode === "login"
-          ? await supabase.auth.signInWithPassword({ email, password })
-          : await supabase.auth.signUp({
-              email,
-              password,
-              options: {
-                data: {
-                  full_name: fullName,
-                  phone,
-                },
+      const result = mode === "login"
+        ? await supabase.auth.signInWithPassword({ email, password })
+        : await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                full_name: fullName,
+                phone,
               },
-            });
+            },
+          });
 
       if (result.error) {
         throw result.error;
@@ -927,30 +1157,22 @@ function CustomerAuthGate({
       const profileResult = await fetch("/api/auth/customer-profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fullName,
-          email,
-          phone,
-        }),
+        body: JSON.stringify({ fullName, email, phone }),
       });
 
       if (!profileResult.ok) {
-        throw new Error("Signed in, but could not attach the customer profile.");
+        throw new Error("Signed in, but could not save your customer profile.");
       }
 
       onAuthChange(true);
       onProfileReadyChange(true);
       saveDraft({
         ...draft,
-        customer: {
-          name: fullName,
-          email,
-          phone,
-        },
+        customer: { name: fullName, email, phone },
       });
-      setMessage("Account ready. Continue to Paystack checkout.");
+      setMessage("You’re all set. Confirm your details to continue.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to authenticate customer.");
+      setMessage(error instanceof Error ? error.message : "Unable to sign you in. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -959,38 +1181,19 @@ function CustomerAuthGate({
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
       <form onSubmit={submitAuth} className="rounded-lg border border-slate-200 bg-white p-4">
-        {!isAuthenticated ? (
-          <div className="flex gap-2">
-            <button
-              className={mode === "login" ? "rounded-md bg-emerald-700 px-3 py-2 text-sm font-bold text-white" : "rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700"}
-              onClick={() => setMode("login")}
-              type="button"
-            >
-              Log in
-            </button>
-            <button
-              className={mode === "signup" ? "rounded-md bg-emerald-700 px-3 py-2 text-sm font-bold text-white" : "rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700"}
-              onClick={() => setMode("signup")}
-              type="button"
-            >
-              Sign up
-            </button>
-          </div>
-        ) : (
-          <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">
-            You are signed in. Complete your customer details to continue.
-          </div>
-        )}
-
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-          {mode === "signup" || profileMissing ? (
+        <div className="grid gap-3 md:grid-cols-2">
+          {mode === "signup" ? (
             <>
               <Input label="Full name" value={fullName} onChange={setFullName} />
-              <Input label="Phone" value={phone} onChange={setPhone} />
+              <Input label="Phone number" value={phone} onChange={setPhone} placeholder="e.g. 082 123 4567" />
             </>
           ) : null}
-          <Input label="Email" type="email" value={email} onChange={setEmail} />
-          {!isAuthenticated ? <Input label="Password" type="password" value={password} onChange={setPassword} /> : null}
+          <div className={mode === "signup" ? "md:col-span-2" : ""}>
+            <Input label="Email" type="email" value={email} onChange={setEmail} />
+          </div>
+          <div className={mode === "signup" ? "md:col-span-2" : ""}>
+            <Input label="Password" type="password" value={password} onChange={setPassword} helper={mode === "signup" ? "Use at least 6 characters." : undefined} />
+          </div>
         </div>
 
         {message ? (
@@ -999,19 +1202,37 @@ function CustomerAuthGate({
           </div>
         ) : null}
 
-        <button
-          className="mt-4 rounded-md bg-emerald-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-60"
-          disabled={isSubmitting || isChecking || !canSubmitAuth}
-          type="submit"
-        >
-          {isSubmitting ? "Checking account" : isAuthenticated ? "Save details and continue" : mode === "login" ? "Log in and continue" : "Create account and continue"}
-        </button>
+        <Button className="mt-4 w-full sm:w-auto" disabled={isSubmitting || !canSubmit} type="submit">
+          {isSubmitting
+            ? "Please wait…"
+            : mode === "login"
+              ? "Sign in and continue"
+              : "Create account and continue"}
+        </Button>
+
+        <p className="mt-4 text-sm text-slate-600">
+          {mode === "login" ? (
+            <>
+              Don’t have an account?{" "}
+              <button className="font-semibold text-emerald-700 hover:underline" onClick={() => { setMode("signup"); setMessage(null); }} type="button">
+                Create one
+              </button>
+            </>
+          ) : (
+            <>
+              Already have an account?{" "}
+              <button className="font-semibold text-emerald-700 hover:underline" onClick={() => { setMode("login"); setMessage(null); }} type="button">
+                Sign in
+              </button>
+            </>
+          )}
+        </p>
       </form>
 
       <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
-        <h3 className="font-bold">Your draft is preserved</h3>
+        <h3 className="font-bold">Your booking is saved</h3>
         <p className="mt-2 leading-6">
-          After login or signup, the current booking summary, preferred cleaner, add-ons, equipment, and recurring schedule stay in place.
+          After you sign in or create an account, your service, schedule, location, add-ons, cleaning supplies, cleaner preference, and latest quote stay in place.
         </p>
       </div>
     </div>
@@ -1200,7 +1421,7 @@ function CleanerSelection({
       <StepTitle
         icon={<UsersRound />}
         title="Cleaner selection"
-        text="Choose a preferred cleaner or let Shalean auto-assign the best available cleaner for your time and suburb."
+        text="Choose a preferred cleaner, or we’ll assign the best available cleaner."
       />
 
       <div className="grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-[1fr_auto] md:items-center">
@@ -1255,7 +1476,7 @@ function CleanerSelection({
                       </span>
                     </span>
                   </span>
-                  <span className="mt-1 block text-xs text-slate-600">{cleaner.experience} experience - {cleaner.reviews} reviews</span>
+                  <span className="mt-1 block text-xs text-slate-600">{cleaner.experience} experience · {cleaner.reviews > 0 ? `${cleaner.reviews} reviews` : "New cleaner"}</span>
                   <span className="mt-2 flex flex-wrap gap-1">
                     {cleaner.specialties.slice(0, 3).map((specialty) => (
                       <span key={specialty} className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">
@@ -1292,11 +1513,13 @@ function BookingSummary({
   quote,
   catalog,
   quoteResponse,
+  onEditStep,
 }: {
   draft: BookingDraft;
   quote: BookingQuote;
   catalog: RegularCleaningCatalog | null;
   quoteResponse: RegularCleaningQuoteResponse | null;
+  onEditStep: (step: number) => void;
 }) {
   const selectedAddOns = catalog?.addons
     .filter((addOn) => Boolean(draft.addOns[addOn.key as keyof BookingDraft["addOns"]]))
@@ -1325,49 +1548,77 @@ function BookingSummary({
         }));
   const equipmentOption = catalog?.equipmentOptions.find((option) => option.key === draft.equipment.mode);
 
+  const suppliesLabel = draft.equipment.mode === "with_equipment" ? "Shalean brings supplies" : "I have my own supplies";
+
   return (
     <div className="grid gap-4 lg:grid-cols-3">
-      <SummaryPanel title="Visit details">
+      <SummaryPanel title="Visit details" onEdit={() => onEditStep(1)} editLabel="Edit schedule">
         <SummaryLine label="Service" value="Regular Cleaning" />
         <SummaryLine label="Date" value={formatDate(draft.date)} />
-        <SummaryLine label="Arrival" value={draft.timeWindow.replace("-", " - ")} />
+        <SummaryLine label="Arrival window" value={draft.timeWindow.replace("-", " – ")} />
+        {draft.frequency !== "once" ? (
+          <SummaryLine label="Frequency" value={draft.frequency.charAt(0).toUpperCase() + draft.frequency.slice(1)} />
+        ) : (
+          <SummaryLine label="Frequency" value="Once-off" />
+        )}
+      </SummaryPanel>
+      <SummaryPanel title="Location" onEdit={() => onEditStep(2)} editLabel="Edit location">
         <SummaryLine label="Suburb" value={draft.suburb} />
         <SummaryLine label="Address" value={draft.address} />
-        {draft.notes.trim() ? <SummaryLine label="Access notes" value={draft.notes.trim()} /> : null}
+        {draft.notes.trim() ? <SummaryLine label="Access notes" value={draft.notes.trim()} /> : <p className="text-sm text-slate-500">No access notes added.</p>}
       </SummaryPanel>
-      <SummaryPanel title="House details">
+      <SummaryPanel title="House details" onEdit={() => onEditStep(3)} editLabel="Edit house details">
         <SummaryLine label="Bedrooms" value={String(draft.bedrooms)} />
         <SummaryLine label="Bathrooms" value={String(draft.bathrooms)} />
         <SummaryLine label="Extra rooms" value={String(draft.extraRooms)} />
         <SummaryLine label="Estimated hours" value={String(quote.estimatedHours)} />
-        <SummaryLine label="Latest total" value={formatZar(quote.totalCents)} />
       </SummaryPanel>
       {quoteResponse?.isRecurring ? (
-        <SummaryPanel title="Recurring plan">
+        <SummaryPanel title="Recurring plan" onEdit={() => onEditStep(1)} editLabel="Edit schedule">
           <SummaryLine label="Schedule" value={formatRecurrenceSummary(draft.frequency, draft.recurrence.weekdays)} />
-          <SummaryLine label="Generated visits" value={String(quoteResponse.occurrences.length)} />
+          <SummaryLine label="Scheduled visits" value={String(quoteResponse.occurrences.length)} />
           <SummaryLine label="Series total" value={formatZar(quoteResponse.seriesTotalCents)} />
         </SummaryPanel>
       ) : null}
-      <SummaryPanel title="Premium add-ons">
+      <SummaryPanel title="Premium add-ons" onEdit={() => onEditStep(3)} editLabel="Edit house details">
         {selectedAddOns.length > 0 ? selectedAddOns.map((addOn) => (
           <SummaryLine key={addOn.key} label={addOn.label} value={formatZar(addOn.priceCents)} />
         )) : <p className="text-sm text-slate-500">No add-ons selected.</p>}
       </SummaryPanel>
-      <SummaryPanel title="Equipment">
+      <SummaryPanel title="Cleaning supplies" onEdit={() => onEditStep(3)} editLabel="Edit house details">
         <SummaryLine
-          label={equipmentOption?.label ?? (draft.equipment.mode === "with_equipment" ? "With Equipment" : "Without Equipment")}
+          label={suppliesLabel}
           value={draft.equipment.mode === "with_equipment" ? formatZar(equipmentOption?.price_cents ?? quote.equipmentCents) : "R 0"}
         />
         {draft.equipment.mode === "with_equipment" ? (
           <p className="mt-2 text-xs leading-5 text-slate-500">{(equipmentOption?.included_items ?? equipmentPackage.items).join(", ")}</p>
         ) : null}
       </SummaryPanel>
-      <SummaryPanel title="Cleaners">
-        <SummaryLine label="Requested cleaners" value={String(quote.cleanerCount)} />
+      <SummaryPanel title="Cleaner preference" onEdit={() => onEditStep(4)} editLabel="Edit cleaner">
+        <SummaryLine label="Cleaners" value={String(quote.cleanerCount)} />
         {selectedCleaners.length > 0 ? selectedCleaners.map((cleaner) => (
           <SummaryLine key={cleaner.id} label={cleaner.name} value={`${cleaner.rating} rating`} />
-        )) : <p className="mt-2 text-sm text-slate-500">Auto-assignment fallback enabled.</p>}
+        )) : <p className="mt-2 text-sm text-slate-500">No preferred cleaner selected. Shalean will auto-assign the best available cleaner.</p>}
+      </SummaryPanel>
+      <SummaryPanel title="Price summary" className="lg:col-span-3">
+        <div className="space-y-2">
+          {quote.lineItems.map((item) => (
+            <div key={item.label} className="flex justify-between gap-3 text-sm">
+              <span className="capitalize text-slate-600">{item.label}</span>
+              <span className="font-semibold text-slate-950">{formatZar(item.amountCents)}</span>
+            </div>
+          ))}
+          {quote.discountCents > 0 ? (
+            <div className="flex justify-between gap-3 text-sm text-emerald-700">
+              <span>Recurring discount</span>
+              <span>-{formatZar(quote.discountCents)}</span>
+            </div>
+          ) : null}
+        </div>
+        <div className="mt-3 flex items-center justify-between border-t border-slate-200 pt-3">
+          <span className="text-sm font-semibold text-slate-600">Total</span>
+          <span className="text-lg font-black text-slate-950">{formatZar(quote.totalCents)}</span>
+        </div>
       </SummaryPanel>
     </div>
   );
@@ -1406,10 +1657,33 @@ function WeekdaySelector({
   );
 }
 
-function SummaryPanel({ title, children }: { title: string; children: React.ReactNode }) {
+function SummaryPanel({
+  title,
+  children,
+  onEdit,
+  editLabel,
+  className,
+}: {
+  title: string;
+  children: React.ReactNode;
+  onEdit?: () => void;
+  editLabel?: string;
+  className?: string;
+}) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
-      <h3 className="text-sm font-bold text-slate-950">{title}</h3>
+    <div className={cn("rounded-lg border border-slate-200 bg-white p-4", className)}>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-bold text-slate-950">{title}</h3>
+        {onEdit ? (
+          <button
+            className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline"
+            onClick={onEdit}
+            type="button"
+          >
+            {editLabel ?? "Edit"}
+          </button>
+        ) : null}
+      </div>
       <div className="mt-3 space-y-2">{children}</div>
     </div>
   );
@@ -1437,10 +1711,20 @@ function formatDate(date: string) {
   }).format(new Date(`${date}T00:00:00`));
 }
 
-function FieldGrid({ title, children }: { title: string; children: React.ReactNode }) {
+function FieldGrid({
+  title,
+  subtitle,
+  icon,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div>
-      <StepTitle title={title} text="Keep going. Your progress is saved automatically on this device." />
+      <StepTitle icon={icon} title={title} text={subtitle ?? "Your progress is saved automatically on this device."} />
       <div className="grid gap-4 md:grid-cols-2">{children}</div>
     </div>
   );
@@ -1451,11 +1735,13 @@ function Input({
   value,
   onChange,
   suffix,
+  helper,
   ...props
 }: Omit<React.InputHTMLAttributes<HTMLInputElement>, "onChange"> & {
   label: string;
   value: string;
   suffix?: string;
+  helper?: string;
   onChange: (value: string) => void;
 }) {
   return (
@@ -1465,6 +1751,7 @@ function Input({
         <input className="min-h-11 w-full rounded-md px-3 text-sm outline-none" value={value} onChange={(event) => onChange(event.target.value)} {...props} />
         {suffix ? <span className="flex items-center px-3 text-sm text-slate-500">{suffix}</span> : null}
       </div>
+      {helper ? <span className="mt-1.5 block text-xs leading-5 text-slate-500">{helper}</span> : null}
     </label>
   );
 }
