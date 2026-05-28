@@ -133,11 +133,6 @@ function SidebarBody({
 }) {
   return (
     <div className="space-y-4 lg:sticky lg:top-4">
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Shalean Cleaning Services</p>
-        <p className="mt-2 text-lg font-bold text-slate-900">Admin workspace</p>
-        <p className="mt-1 text-sm text-slate-600">Operations control center</p>
-      </div>
       <nav className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
         <div className="space-y-4">
           {navGroups.map((group) => (
