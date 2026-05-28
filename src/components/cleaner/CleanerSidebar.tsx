@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS: CleanerNavItem[] = [
   { href: "/cleaner", label: "Dashboard", icon: "dashboard" },
   { href: "/cleaner/jobs", label: "Jobs", icon: "jobs" },
-  { href: "/cleaner#earnings", label: "Earnings", icon: "earnings" },
+  { href: "/cleaner/earnings", label: "Earnings", icon: "earnings" },
   { href: "/cleaner/profile", label: "Profile", icon: "profile" },
 ];
 
@@ -72,11 +72,7 @@ export function CleanerSidebar({
           const isActive =
             item.href === "/cleaner"
               ? pathname === "/cleaner"
-              : item.href.startsWith("/cleaner/jobs")
-                ? pathname === "/cleaner/jobs"
-              : item.href.startsWith("/cleaner/profile")
-                ? pathname === "/cleaner/profile"
-                : false;
+              : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
           return (
             <Link

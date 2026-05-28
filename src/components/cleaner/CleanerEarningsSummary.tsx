@@ -12,14 +12,7 @@ type CleanerEarningsSummaryProps = {
 
 export function CleanerEarningsSummary({ earnings }: CleanerEarningsSummaryProps) {
   return (
-    <section id="earnings" className="scroll-mt-24">
-      <div className="mb-3">
-        <h2 className="text-lg font-black text-slate-950 sm:text-xl">Earnings</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Track today, this week, and pending payouts from your Regular Cleaning jobs.
-        </p>
-      </div>
-
+    <section className="scroll-mt-24">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <CleanerStatCard icon={<Wallet className="h-5 w-5" />} label="Today" value={formatZar(earnings.todayCents)} />
         <CleanerStatCard icon={<Calendar className="h-5 w-5" />} label="This week" value={formatZar(earnings.weekCents)} />

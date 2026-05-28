@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { CleanerAvailabilityToggle } from "@/components/cleaner/CleanerAvailabilityToggle";
-import { CleanerEarningsSummary } from "@/components/cleaner/CleanerEarningsSummary";
 import { cleanerLogoutAction } from "@/lib/cleaner/actions";
 import { CLEANER_FALLBACK_PHOTO } from "@/lib/cleaner/format";
 import { requireCleanerSession } from "@/lib/auth/server";
@@ -111,8 +110,6 @@ export default async function CleanerProfilePage() {
           ))}
         </dl>
       </Card>
-
-      <CleanerEarningsSummary earnings={dashboard.earnings} />
 
       <Card className="p-4 sm:p-5">
         <form action={cleanerLogoutAction}>
