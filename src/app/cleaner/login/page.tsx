@@ -17,7 +17,7 @@ export default async function CleanerLoginPage({ searchParams }: PageProps) {
   const error = getParam(params, "error");
 
   return (
-    <main className="grid min-h-screen place-items-center bg-slate-50 px-4 py-10">
+    <div className="grid min-h-[calc(100vh-4rem)] place-items-center px-4 py-10">
       <Card className="w-full max-w-md p-6">
         <p className="text-sm font-black uppercase tracking-[0.2em] text-emerald-800">Shalean</p>
         <Badge>Cleaner access</Badge>
@@ -42,7 +42,7 @@ export default async function CleanerLoginPage({ searchParams }: PageProps) {
           </button>
         </form>
       </Card>
-    </main>
+    </div>
   );
 }
 
