@@ -20,12 +20,14 @@ export function AdminBookingWizardCard({
   cleaners,
   addons,
   equipmentOptions,
+  hasActivePricingRules,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   customers: CustomerRow[];
   cleaners: CleanerRow[];
   addons: AddonRow[];
   equipmentOptions: EquipmentRow[];
+  hasActivePricingRules: boolean;
 }) {
   const [step, setStep] = useState(0);
   const [customerId, setCustomerId] = useState(customers[0]?.id ?? "");
@@ -63,9 +65,10 @@ export function AdminBookingWizardCard({
   );
 
   function nextStep() {
-    const currentStep = fieldsetsRef.current[step];
-    if (currentStep && !currentStep.checkValidity()) {
-      currentStep.reportValidity();
+    if (!isCurrentStepValid(step)) {
+      return;
+    }
+    if (step === 3 && !hasActivePricingRules) {
       return;
     }
     setStep((current) => Math.min(totalSteps - 1, current + 1));
@@ -82,6 +85,26 @@ export function AdminBookingWizardCard({
       }
       return current.filter((key) => key !== addonKey);
     });
+  }
+
+  function isCurrentStepValid(stepIndex: number) {
+    const currentStep = fieldsetsRef.current[stepIndex];
+    if (!currentStep) {
+      return true;
+    }
+
+    const controls = currentStep.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
+      "input, select, textarea",
+    );
+
+    for (const control of controls) {
+      if (!control.checkValidity()) {
+        control.reportValidity();
+        return false;
+      }
+    }
+
+    return true;
   }
 
   return (
@@ -205,6 +228,11 @@ export function AdminBookingWizardCard({
           className={cn(step === 3 ? "space-y-4" : "hidden")}
         >
           <WizardGroup title="Step 4 · Services & add-ons" description="Select equipment package and optional add-ons.">
+            {!hasActivePricingRules ? (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
+                Regular Cleaning pricing rules are not active. Activate at least one pricing rule before continuing to assignment and submission.
+              </p>
+            ) : null}
             <div className="grid gap-3 lg:grid-cols-2">
               <WizardSelect
                 label="Equipment"
@@ -300,9 +328,10 @@ export function AdminBookingWizardCard({
           </button>
           {step < totalSteps - 1 ? (
             <button
-              className="inline-flex items-center gap-2 rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-600"
+              className="inline-flex items-center gap-2 rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:opacity-40"
               type="button"
               onClick={nextStep}
+              disabled={step === 3 && !hasActivePricingRules}
             >
               Next
               <ChevronRight className="h-4 w-4" />

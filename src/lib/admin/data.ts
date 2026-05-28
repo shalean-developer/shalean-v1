@@ -23,23 +23,26 @@ export type AdminBookingListItem = BookingRow & {
 
 export async function loadAdminManagementData() {
   const supabase = createSupabaseAdminClient();
-  const [cleanersResult, customersResult, addonsResult, equipmentResult] = await Promise.all([
+  const [cleanersResult, customersResult, addonsResult, equipmentResult, pricingRulesResult] = await Promise.all([
     supabase.from("cleaners").select("*").order("display_name"),
     supabase.from("customers").select("*").order("full_name"),
     supabase.from("service_addons").select("*").eq("service_slug", REGULAR_CLEANING_SLUG).eq("active", true).order("sort_order"),
     supabase.from("service_equipment_options").select("*").eq("service_slug", REGULAR_CLEANING_SLUG).eq("active", true).order("sort_order"),
+    supabase.from("regular_cleaning_pricing_rules").select("id", { count: "exact", head: true }).eq("active", true),
   ]);
 
   if (cleanersResult.error) throw cleanersResult.error;
   if (customersResult.error) throw customersResult.error;
   if (addonsResult.error) throw addonsResult.error;
   if (equipmentResult.error) throw equipmentResult.error;
+  if (pricingRulesResult.error) throw pricingRulesResult.error;
 
   return {
     cleaners: cleanersResult.data ?? [],
     customers: customersResult.data ?? [],
     addons: addonsResult.data ?? [],
     equipmentOptions: equipmentResult.data ?? [],
+    hasActivePricingRules: (pricingRulesResult.count ?? 0) > 0,
   };
 }
 

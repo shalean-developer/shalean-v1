@@ -2,6 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/server";
 import {
   boolValue,
@@ -236,6 +237,9 @@ export async function createAdminBookingAction(formData: FormData) {
     if (error instanceof PreferredCleanerUnavailableError) {
       throw new Error("Selected cleaner is unavailable for that suburb.");
     }
+    if (error instanceof Error && isRegularCleaningCatalogConfigurationError(error.message)) {
+      redirect("/admin/bookings?error=catalog-config");
+    }
     throw error;
   }
 
@@ -356,4 +360,9 @@ function revalidateAdmin() {
   revalidatePath("/admin/bookings");
   revalidatePath("/admin/payments");
   revalidatePath("/admin/settings");
+}
+
+function isRegularCleaningCatalogConfigurationError(message: string) {
+  return message === "Regular Cleaning bedroom/bathroom pricing is not configured" ||
+    message === "Regular Cleaning equipment options are not configured";
 }
