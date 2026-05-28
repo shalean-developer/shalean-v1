@@ -66,7 +66,7 @@ export default async function AdminDashboardPage() {
         ))}
       </section>
 
-      <section className="grid gap-4 2xl:grid-cols-[1.35fr_1fr]">
+      <section className="grid gap-4 xl:grid-cols-2">
         <TodayScheduleCard schedule={model.schedule} />
         <CleanerStatusCard cleaners={model.cleanerStatus} />
       </section>
