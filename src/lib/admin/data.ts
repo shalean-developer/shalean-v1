@@ -6,6 +6,9 @@ export type CleanerRow = Database["public"]["Tables"]["cleaners"]["Row"];
 export type CustomerRow = Database["public"]["Tables"]["customers"]["Row"];
 export type AddonRow = Database["public"]["Tables"]["service_addons"]["Row"];
 export type EquipmentRow = Database["public"]["Tables"]["service_equipment_options"]["Row"];
+export type ServiceRow = Database["public"]["Tables"]["services"]["Row"];
+export type PricingRuleRow = Database["public"]["Tables"]["pricing_rules"]["Row"];
+export type RecurringPricingRuleRow = Database["public"]["Tables"]["recurring_pricing_rules"]["Row"];
 export type PaymentRow = Database["public"]["Tables"]["payments"]["Row"];
 export type BookingRow = Database["public"]["Tables"]["bookings"]["Row"];
 
@@ -43,6 +46,58 @@ export async function loadAdminManagementData() {
     addons: addonsResult.data ?? [],
     equipmentOptions: equipmentResult.data ?? [],
     hasActivePricingRules: (pricingRulesResult.count ?? 0) > 0,
+  };
+}
+
+export async function loadAdminPricingData() {
+  const supabase = createSupabaseAdminClient();
+  const [servicesResult, houseRulesResult, addonsResult, equipmentResult, quantityRulesResult, recurringRulesResult] = await Promise.all([
+    supabase
+      .from("services")
+      .select("*")
+      .eq("slug", REGULAR_CLEANING_SLUG)
+      .order("title"),
+    supabase
+      .from("pricing_rules")
+      .select("*")
+      .eq("service_slug", REGULAR_CLEANING_SLUG)
+      .order("sort_order"),
+    supabase
+      .from("service_addons")
+      .select("*")
+      .eq("service_slug", REGULAR_CLEANING_SLUG)
+      .order("sort_order"),
+    supabase
+      .from("service_equipment_options")
+      .select("*")
+      .eq("service_slug", REGULAR_CLEANING_SLUG)
+      .order("sort_order"),
+    supabase
+      .from("cleaner_quantity_rules")
+      .select("*")
+      .eq("service_slug", REGULAR_CLEANING_SLUG)
+      .order("created_at"),
+    supabase
+      .from("recurring_pricing_rules")
+      .select("*")
+      .eq("service_slug", REGULAR_CLEANING_SLUG)
+      .order("sort_order"),
+  ]);
+
+  if (servicesResult.error) throw servicesResult.error;
+  if (houseRulesResult.error) throw houseRulesResult.error;
+  if (addonsResult.error) throw addonsResult.error;
+  if (equipmentResult.error) throw equipmentResult.error;
+  if (quantityRulesResult.error) throw quantityRulesResult.error;
+  if (recurringRulesResult.error) throw recurringRulesResult.error;
+
+  return {
+    services: servicesResult.data ?? [],
+    houseRules: houseRulesResult.data ?? [],
+    addons: addonsResult.data ?? [],
+    equipmentOptions: equipmentResult.data ?? [],
+    cleanerQuantityRules: quantityRulesResult.data ?? [],
+    recurringRules: recurringRulesResult.data ?? [],
   };
 }
 

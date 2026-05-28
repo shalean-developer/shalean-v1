@@ -33,9 +33,24 @@ export type Database = {
           workload_weight: number;
           active: boolean;
           sort_order: number;
+          created_at: string;
+          updated_at: string;
         };
-        Insert: never;
-        Update: never;
+        Insert: {
+          id?: string;
+          service_slug: string;
+          key: string;
+          label: string;
+          description?: string | null;
+          price_cents?: number;
+          duration_minutes?: number;
+          workload_weight?: number;
+          active?: boolean;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["service_addons"]["Insert"]>;
         Relationships: [];
       };
       services: {
@@ -55,8 +70,23 @@ export type Database = {
           created_at: string;
           updated_at: string;
         };
-        Insert: never;
-        Update: never;
+        Insert: {
+          id?: string;
+          slug?: string | null;
+          title?: string | null;
+          name?: string | null;
+          category?: string | null;
+          description?: string | null;
+          default_duration_minutes?: number;
+          base_price_cents?: number;
+          currency?: string;
+          active?: boolean;
+          min_hours?: number;
+          requires_team?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["services"]["Insert"]>;
         Relationships: [];
       };
       service_equipment_options: {
@@ -70,9 +100,23 @@ export type Database = {
           included_items: string[];
           active: boolean;
           sort_order: number;
+          created_at: string;
+          updated_at: string;
         };
-        Insert: never;
-        Update: never;
+        Insert: {
+          id?: string;
+          service_slug: string;
+          key: string;
+          label: string;
+          description?: string | null;
+          price_cents?: number;
+          included_items?: string[];
+          active?: boolean;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["service_equipment_options"]["Insert"]>;
         Relationships: [];
       };
       cleaner_quantity_rules: {
@@ -85,9 +129,82 @@ export type Database = {
           extra_cleaner_price_cents: number;
           recommended_workload_minutes_per_cleaner: number;
           active: boolean;
+          created_at: string;
+          updated_at: string;
         };
-        Insert: never;
-        Update: never;
+        Insert: {
+          id?: string;
+          service_slug: string;
+          min_cleaners?: number;
+          max_cleaners?: number;
+          included_cleaners?: number;
+          extra_cleaner_price_cents?: number;
+          recommended_workload_minutes_per_cleaner?: number;
+          active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["cleaner_quantity_rules"]["Insert"]>;
+        Relationships: [];
+      };
+      pricing_rules: {
+        Row: {
+          id: string;
+          service_slug: string;
+          key: string;
+          name: string;
+          description: string | null;
+          price_cents: number;
+          estimated_minutes: number;
+          active: boolean;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          service_slug: string;
+          key: string;
+          name: string;
+          description?: string | null;
+          price_cents?: number;
+          estimated_minutes?: number;
+          active?: boolean;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["pricing_rules"]["Insert"]>;
+        Relationships: [];
+      };
+      recurring_pricing_rules: {
+        Row: {
+          id: string;
+          service_slug: string;
+          key: string;
+          name: string;
+          description: string | null;
+          multiplier: number;
+          prepaid_visits: number;
+          active: boolean;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          service_slug: string;
+          key: string;
+          name: string;
+          description?: string | null;
+          multiplier?: number;
+          prepaid_visits?: number;
+          active?: boolean;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["recurring_pricing_rules"]["Insert"]>;
         Relationships: [];
       };
       regular_cleaning_pricing_rules: {
@@ -98,9 +215,20 @@ export type Database = {
           base_price_cents: number;
           estimated_minutes: number;
           active: boolean;
+          created_at: string;
+          updated_at: string;
         };
-        Insert: never;
-        Update: never;
+        Insert: {
+          id?: string;
+          bedrooms: number;
+          bathrooms: number;
+          base_price_cents: number;
+          estimated_minutes: number;
+          active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["regular_cleaning_pricing_rules"]["Insert"]>;
         Relationships: [];
       };
       customers: {

@@ -28,6 +28,128 @@ type SupabaseAdmin = ReturnType<typeof createSupabaseAdminClient>;
 type AdminRole = "customer" | "cleaner" | "admin";
 const AUTO_ASSIGN_SENTINEL = "__auto_assign__";
 
+export type PricingUpdateState = {
+  ok?: boolean;
+  message?: string;
+};
+
+type PricingTable =
+  | "services"
+  | "pricing_rules"
+  | "service_addons"
+  | "service_equipment_options"
+  | "cleaner_quantity_rules"
+  | "recurring_pricing_rules";
+
+export async function updatePricingAction(
+  _prevState: PricingUpdateState,
+  formData: FormData,
+): Promise<PricingUpdateState> {
+  await requireAdmin();
+
+  try {
+    const table = requiredString(formData, "table") as PricingTable;
+    const id = requiredString(formData, "id");
+    const active = formData.get("active") === "on";
+    const supabase = createSupabaseAdminClient();
+
+    if (table === "services") {
+      const basePriceCents = randToCents(formData, "basePrice", "Base price");
+      const result = await supabase
+        .from("services")
+        .update({
+          title: requiredString(formData, "title"),
+          name: requiredString(formData, "title"),
+          description: optionalString(formData, "description"),
+          base_price_cents: basePriceCents,
+          active,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+
+      if (result.error) throw result.error;
+    } else if (table === "pricing_rules") {
+      const result = await supabase
+        .from("pricing_rules")
+        .update({
+          name: requiredString(formData, "name"),
+          description: optionalString(formData, "description"),
+          price_cents: randToCents(formData, "price", "Price"),
+          estimated_minutes: nonnegativeInt(formData, "estimatedMinutes", "Estimated minutes"),
+          active,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+
+      if (result.error) throw result.error;
+    } else if (table === "service_addons") {
+      const result = await supabase
+        .from("service_addons")
+        .update({
+          label: requiredString(formData, "label"),
+          description: optionalString(formData, "description"),
+          price_cents: randToCents(formData, "price", "Price"),
+          duration_minutes: nonnegativeInt(formData, "durationMinutes", "Estimated minutes"),
+          active,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+
+      if (result.error) throw result.error;
+    } else if (table === "service_equipment_options") {
+      const result = await supabase
+        .from("service_equipment_options")
+        .update({
+          label: requiredString(formData, "label"),
+          description: optionalString(formData, "description"),
+          price_cents: randToCents(formData, "price", "Price"),
+          active,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+
+      if (result.error) throw result.error;
+    } else if (table === "cleaner_quantity_rules") {
+      const result = await supabase
+        .from("cleaner_quantity_rules")
+        .update({
+          extra_cleaner_price_cents: randToCents(formData, "extraCleanerPrice", "Extra cleaner price"),
+          recommended_workload_minutes_per_cleaner: positiveInt(formData, "recommendedMinutes", "Recommended cleaner minutes"),
+          active,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+
+      if (result.error) throw result.error;
+    } else if (table === "recurring_pricing_rules") {
+      const multiplier = nonnegativeNumber(formData, "multiplier", "Multiplier");
+      const result = await supabase
+        .from("recurring_pricing_rules")
+        .update({
+          name: requiredString(formData, "name"),
+          description: optionalString(formData, "description"),
+          multiplier,
+          prepaid_visits: positiveInt(formData, "prepaidVisits", "Prepaid visits"),
+          active,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+
+      if (result.error) throw result.error;
+    } else {
+      throw new Error("Unsupported pricing record.");
+    }
+
+    revalidatePricing();
+    return { ok: true, message: "Pricing saved." };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Unable to save pricing.",
+    };
+  }
+}
+
 export async function createCleanerAction(formData: FormData) {
   const { profile } = await requireAdmin();
   const supabase = createSupabaseAdminClient();
@@ -226,6 +348,7 @@ export async function createAdminBookingAction(formData: FormData) {
     bedrooms: clampInt(intValue(formData, "bedrooms"), 0, 12),
     bathrooms: clampInt(intValue(formData, "bathrooms"), 1, 12),
     extraRooms: clampInt(intValue(formData, "extraRooms"), 0, 12),
+    squareMeters: 80,
     selectedAddonKeys: formData.getAll("addonKeys").map(String),
     equipmentOptionKey: requiredString(formData, "equipmentOptionKey") as RegularCleaningBookingInput["equipmentOptionKey"],
     cleanerCount: clampInt(intValue(formData, "cleanerCount"), 1, 4),
@@ -375,6 +498,13 @@ function revalidateAdmin() {
   revalidatePath("/admin/settings");
 }
 
+function revalidatePricing() {
+  revalidatePath("/admin/pricing");
+  revalidatePath("/book");
+  revalidatePath("/api/regular-cleaning/catalog");
+  revalidatePath("/api/bookings/quote");
+}
+
 function isRegularCleaningCatalogConfigurationError(message: string) {
   return message === "Regular Cleaning bedroom/bathroom pricing is not configured" ||
     message === "Regular Cleaning equipment options are not configured";
@@ -382,4 +512,40 @@ function isRegularCleaningCatalogConfigurationError(message: string) {
 
 function clampInt(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function randToCents(formData: FormData, key: string, label: string) {
+  const value = nonnegativeNumber(formData, key, label);
+  return Math.round(value * 100);
+}
+
+function nonnegativeNumber(formData: FormData, key: string, label: string) {
+  const raw = requiredString(formData, key);
+  const value = Number(raw);
+
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`${label} cannot be negative.`);
+  }
+
+  return value;
+}
+
+function nonnegativeInt(formData: FormData, key: string, label: string) {
+  const value = Math.round(nonnegativeNumber(formData, key, label));
+
+  if (value < 0) {
+    throw new Error(`${label} cannot be negative.`);
+  }
+
+  return value;
+}
+
+function positiveInt(formData: FormData, key: string, label: string) {
+  const value = nonnegativeInt(formData, key, label);
+
+  if (value < 1) {
+    throw new Error(`${label} must be at least 1.`);
+  }
+
+  return value;
 }

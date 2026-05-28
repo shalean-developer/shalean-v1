@@ -15,6 +15,7 @@ const baseInput: RegularCleaningBookingInput = {
   bedrooms: 2,
   bathrooms: 1,
   extraRooms: 0,
+  squareMeters: 80,
   selectedAddonKeys: [],
   equipmentOptionKey: "without_equipment",
   cleanerCount: 1,

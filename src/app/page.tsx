@@ -9,7 +9,6 @@ import { clearCleanerSession, getCleanerSession, getCurrentUser, getProfileForUs
 import { siteConfig, suburbSlugs } from "@/lib/config/site";
 import { serviceCatalog } from "@/lib/booking/services";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { formatZar } from "@/lib/utils";
 
 const platformStats = [
   ["6", "Launch services"],
@@ -68,7 +67,7 @@ export default async function Home() {
     email: siteConfig.email,
     telephone: siteConfig.phone,
     areaServed: siteConfig.serviceArea,
-    priceRange: "R250-R350+",
+    priceRange: "Live quote",
     serviceType: serviceCatalog.map((service) => service.title),
   };
 
@@ -171,7 +170,7 @@ export default async function Home() {
               </div>
               <p className="mt-3 text-sm leading-6 text-slate-600">{service.summary}</p>
               <div className="mt-5 flex items-center justify-between text-sm">
-                <span className="font-semibold text-slate-500">From {formatZar(service.baseCents)}</span>
+                <span className="font-semibold text-slate-500">Live quote</span>
                 <Link className="font-semibold text-emerald-800" href={`/services/${service.slug}`}>
                   SEO page
                 </Link>

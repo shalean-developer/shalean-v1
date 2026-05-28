@@ -24,6 +24,7 @@ export function bookingDraftToRegularCleaningInput(draft: BookingDraft): Regular
     bedrooms: draft.bedrooms,
     bathrooms: draft.bathrooms,
     extraRooms: draft.extraRooms,
+    squareMeters: draft.squareMeters,
     selectedAddonKeys,
     equipmentOptionKey: draft.equipment.mode,
     cleanerCount: draft.requestedCleaners,

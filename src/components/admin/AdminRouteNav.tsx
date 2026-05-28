@@ -12,6 +12,7 @@ import {
   Menu,
   Settings,
   ShieldCheck,
+  Tags,
   Users,
   UsersRound,
   X,
@@ -38,6 +39,7 @@ const navGroups = [
     title: "Finance",
     items: [
       { href: "/admin/payments", label: "Payments", icon: Banknote },
+      { href: "/admin/pricing", label: "Pricing", icon: Tags },
     ],
   },
   {

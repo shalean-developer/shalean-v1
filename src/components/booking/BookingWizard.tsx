@@ -22,13 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { capeTownSuburbs } from "@/lib/config/site";
 import { bookingDraftSchema } from "@/lib/booking/schema";
-import {
-  calculateQuote,
-  createEmptyBookingDraft,
-  equipmentPackage,
-  getSelectedAddOns,
-  regularCleaningAddOns,
-} from "@/lib/booking/pricing";
+import { createEmptyBookingDraft } from "@/lib/booking/pricing";
 import { serviceCatalog, getService } from "@/lib/booking/services";
 import { getAvailableCleaners, getCleanerById } from "@/lib/booking/cleaners";
 import type { AssignmentMode, BookingDraft, BookingQuote, EquipmentMode } from "@/lib/booking/types";
@@ -68,10 +62,9 @@ export function BookingWizard() {
   const [isCustomerProfileReady, setIsCustomerProfileReady] = useState(false);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const service = getService(draft.serviceSlug) ?? serviceCatalog[0];
-  const clientQuote = useMemo(() => calculateQuote(draft), [draft]);
   const quote = useMemo(
-    () => serverQuote ? toBookingQuote(serverQuote, draft, clientQuote) : clientQuote,
-    [clientQuote, draft, serverQuote],
+    () => serverQuote ? toBookingQuote(serverQuote) : createPendingBookingQuote(draft),
+    [draft, serverQuote],
   );
   const stepValidationErrors = validateStep(step, draft);
   const quoteBlocked = draft.serviceSlug === "regular-cleaning" && (isQuoteLoading || Boolean(quoteError) || !serverQuote);
@@ -639,7 +632,7 @@ function renderStep({
     description: addOn.description ?? "",
     priceCents: addOn.price_cents,
     durationHours: addOn.duration_minutes / 60,
-  })) ?? regularCleaningAddOns;
+  })) ?? [];
   const withEquipmentOption = regularCatalog?.equipmentOptions.find((option) => option.key === "with_equipment");
   const withoutEquipmentOption = regularCatalog?.equipmentOptions.find((option) => option.key === "without_equipment");
 
@@ -832,17 +825,17 @@ function renderStep({
                 active={draft.equipment.mode === "with_equipment"}
                 mode="with_equipment"
                 onSelect={updateEquipmentMode}
-                title="Shalean brings supplies"
-                price={formatZar(withEquipmentOption?.price_cents ?? equipmentPackage.priceCents)}
-                text={withEquipmentOption?.description ?? "Shalean supplies vacuum cleaner, mop & bucket, chemicals, cloths, and professional tools."}
+                title={withEquipmentOption?.label ?? "Shalean brings supplies"}
+                price={withEquipmentOption ? formatZar(withEquipmentOption.price_cents) : "Loading"}
+                text={withEquipmentOption?.description ?? "Loading admin-managed equipment pricing."}
               />
               <EquipmentCard
                 active={draft.equipment.mode === "without_equipment"}
                 mode="without_equipment"
                 onSelect={updateEquipmentMode}
-                title="I have my own supplies"
-                price={formatZar(withoutEquipmentOption?.price_cents ?? 0)}
-                text={withoutEquipmentOption?.description ?? "Use this if your home already has suitable cleaning equipment and products available."}
+                title={withoutEquipmentOption?.label ?? "I have my own supplies"}
+                price={withoutEquipmentOption ? formatZar(withoutEquipmentOption.price_cents) : "Loading"}
+                text={withoutEquipmentOption?.description ?? "Loading admin-managed equipment pricing."}
               />
             </div>
           </div>
@@ -1276,67 +1269,63 @@ function SignInOrSignUp({
 
 function toBookingQuote(
   response: RegularCleaningQuoteResponse,
-  draft: BookingDraft,
-  fallback: BookingQuote,
 ): BookingQuote {
-  const lineItems: BookingQuote["lineItems"] = [
-    { label: "Regular Cleaning", amountCents: response.quote.basePriceCents, category: "base" },
-    ...response.quote.selectedAddons.map((addOn) => ({
-      label: addOn.label,
-      amountCents: addOn.priceCents,
-      durationHours: addOn.durationMinutes / 60,
-      category: "addon" as const,
-    })),
-  ];
-
-  if (response.quote.extraRoomAllocationCents > 0) {
-    lineItems.push({
-      label: `${draft.extraRooms} extra room allocation`,
-      amountCents: response.quote.extraRoomAllocationCents,
-      category: "rooms",
-    });
-  }
-
-  if (response.quote.equipmentTotalCents > 0) {
-    lineItems.push({
-      label: response.quote.equipmentOption.label,
-      amountCents: response.quote.equipmentTotalCents,
-      category: "equipment",
-    });
-  }
-
-  if (response.quote.extraCleanersTotalCents > 0) {
-    lineItems.push({
-      label: `${response.quote.cleanerCount} cleaner team speed-up`,
-      amountCents: response.quote.extraCleanersTotalCents,
-      category: "cleaners",
-    });
-  }
+  const lineItems: BookingQuote["lineItems"] = response.quote.breakdown.map((item) => ({
+    label: item.label,
+    amountCents: item.amountCents,
+    durationHours: item.durationMinutes ? item.durationMinutes / 60 : undefined,
+    category: item.category === "minimum" ? "base" : item.category,
+  }));
 
   if (response.isRecurring) {
     lineItems.push({
       label: `${response.occurrences.length} prepaid visits`,
-      amountCents: response.seriesTotalCents - response.quote.finalTotalCents,
+      amountCents: response.quote.finalTotalCents * Math.max(0, response.occurrences.length - 1),
       category: "base",
     });
   }
 
   return {
-    ...fallback,
     serviceSlug: "regular-cleaning",
     totalCents: response.seriesTotalCents,
-    subtotalCents: response.seriesTotalCents,
-    discountCents: 0,
+    subtotalCents: response.seriesSubtotalCents,
+    discountCents: response.recurringDiscountCents,
     cleanerCount: response.quote.cleanerCount,
     recommendedCleanerCount: response.quote.recommendedCleanerCount,
+    recommendedTeamSize: 0,
     estimatedHours: Number((response.quote.estimatedMinutes / 60).toFixed(1)),
-    workloadHours: Number((response.quote.estimatedMinutes / 60).toFixed(1)),
+    workloadHours: Number((response.quote.workloadMinutes / 60).toFixed(1)),
+    requiresTeam: false,
     lineItems,
     addOnTotalCents: response.quote.addonsTotalCents,
     equipmentCents: response.quote.equipmentTotalCents,
     payout: {
-      ...fallback.payout,
-      cleanerTotalCents: fallback.payout.perCleanerCents * response.quote.cleanerCount,
+      cleanerTotalCents: 0,
+      perCleanerCents: 0,
+      rule: "Calculated after payment",
+    },
+  };
+}
+
+function createPendingBookingQuote(draft: BookingDraft): BookingQuote {
+  return {
+    serviceSlug: draft.serviceSlug,
+    totalCents: 0,
+    subtotalCents: 0,
+    discountCents: 0,
+    cleanerCount: draft.requestedCleaners,
+    recommendedCleanerCount: draft.requestedCleaners,
+    recommendedTeamSize: 0,
+    estimatedHours: 0,
+    workloadHours: 0,
+    requiresTeam: false,
+    lineItems: [],
+    addOnTotalCents: 0,
+    equipmentCents: 0,
+    payout: {
+      cleanerTotalCents: 0,
+      perCleanerCents: 0,
+      rule: "Pending server quote",
     },
   };
 }
@@ -1580,7 +1569,7 @@ function BookingSummary({
       key: addOn.key,
       label: addOn.label,
       priceCents: addOn.price_cents,
-    })) ?? getSelectedAddOns(draft);
+    })) ?? [];
   const selectedCleanerIds = draft.preferredCleanerId ? [draft.preferredCleanerId] : draft.selectedCleanerIds;
   const selectedCleaners = catalog
     ? selectedCleanerIds
@@ -1666,7 +1655,7 @@ function BookingSummary({
               value={usesOwnSupplies ? "R 0" : formatZar(equipmentOption?.price_cents ?? quote.equipmentCents)}
             />
             {usesOwnSupplies ? null : (
-              <p className="text-xs leading-5 text-slate-500">{(equipmentOption?.included_items ?? equipmentPackage.items).join(", ")}</p>
+              <p className="text-xs leading-5 text-slate-500">{(equipmentOption?.included_items ?? []).join(", ")}</p>
             )}
           </SummaryPanel>
           {quoteResponse?.isRecurring ? (

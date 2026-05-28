@@ -39,7 +39,6 @@ export type ServiceDefinition = {
   category: ServiceCategory;
   summary: string;
   description: string;
-  baseCents: number;
   minHours: number;
   requiresTeam: boolean;
   allowMultipleCleaners: boolean;

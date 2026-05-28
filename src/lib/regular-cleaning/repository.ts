@@ -15,7 +15,9 @@ export async function loadRegularCleaningCatalog(
     addonsResult,
     equipmentResult,
     quantityResult,
-    pricingResult,
+    pricingRulesResult,
+    recurringRulesResult,
+    legacyPricingResult,
     cleanersResult,
   ] = await Promise.all([
     supabase
@@ -43,6 +45,18 @@ export async function loadRegularCleaningCatalog(
       .eq("active", true)
       .single(),
     supabase
+      .from("pricing_rules")
+      .select("*")
+      .eq("service_slug", REGULAR_CLEANING_SLUG)
+      .eq("active", true)
+      .order("sort_order"),
+    supabase
+      .from("recurring_pricing_rules")
+      .select("*")
+      .eq("service_slug", REGULAR_CLEANING_SLUG)
+      .eq("active", true)
+      .order("sort_order"),
+    supabase
       .from("regular_cleaning_pricing_rules")
       .select("*")
       .eq("active", true)
@@ -59,7 +73,9 @@ export async function loadRegularCleaningCatalog(
   if (addonsResult.error) throw addonsResult.error;
   if (equipmentResult.error) throw equipmentResult.error;
   if (quantityResult.error) throw quantityResult.error;
-  if (pricingResult.error) throw pricingResult.error;
+  if (pricingRulesResult.error) throw pricingRulesResult.error;
+  if (recurringRulesResult.error) throw recurringRulesResult.error;
+  if (legacyPricingResult.error) throw legacyPricingResult.error;
   if (cleanersResult.error) throw cleanersResult.error;
 
   const cleaners = (cleanersResult.data ?? []).map((cleaner) => ({
@@ -73,7 +89,9 @@ export async function loadRegularCleaningCatalog(
     addons: addonsResult.data ?? [],
     equipmentOptions: equipmentResult.data ?? [],
     cleanerQuantityRule: quantityResult.data,
-    pricingRules: pricingResult.data ?? [],
+    pricingRules: pricingRulesResult.data ?? [],
+    recurringPricingRules: recurringRulesResult.data ?? [],
+    legacyPricingRules: legacyPricingResult.data ?? [],
     cleaners,
   };
 }
@@ -222,15 +240,40 @@ export function buildRegularCleaningQuote(
     recurrenceWeekdays: normalizeRecurrenceWeekdays(input.recurrenceWeekdays, input.bookingDate),
   };
   const quote = calculateRegularCleaningPrice(normalizedInput, catalog);
-  const occurrences = buildRegularCleaningOccurrences(normalizedInput);
+  const recurringRule = resolveRecurringRule(normalizedInput.frequency, catalog);
+  const occurrences = buildRegularCleaningOccurrences(normalizedInput, recurringRule.prepaid_visits);
   const isRecurring = isRecurringFrequency(normalizedInput.frequency);
+  const seriesSubtotalCents = quote.finalTotalCents * occurrences.length;
+  const multiplier = isRecurring ? Number(recurringRule.multiplier) : 1;
+  const seriesTotalCents = Math.max(0, Math.round(seriesSubtotalCents * multiplier));
 
   return {
     quote,
     occurrences,
     isRecurring,
-    seriesTotalCents: quote.finalTotalCents * occurrences.length,
+    recurringRule: {
+      key: recurringRule.key,
+      label: recurringRule.name,
+      multiplier,
+      prepaidVisits: recurringRule.prepaid_visits,
+    },
+    seriesSubtotalCents,
+    recurringDiscountCents: Math.max(0, seriesSubtotalCents - seriesTotalCents),
+    seriesTotalCents,
   };
+}
+
+function resolveRecurringRule(
+  frequency: RegularCleaningBookingInput["frequency"],
+  catalog: RegularCleaningCatalog,
+) {
+  const rule = catalog.recurringPricingRules.find((item) => item.key === frequency && item.active);
+
+  if (!rule) {
+    throw new Error(`Regular Cleaning recurring pricing is not configured for ${frequency}`);
+  }
+
+  return rule;
 }
 
 export function buildRegularCleaningBookingInsert(

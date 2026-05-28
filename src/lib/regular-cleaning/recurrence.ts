@@ -11,16 +11,19 @@ export const WEEKDAYS = [
   { value: 7, label: "Sunday", shortLabel: "Sun" },
 ] as const;
 
-export function buildRegularCleaningOccurrences(input: RegularCleaningBookingInput): RegularCleaningOccurrence[] {
+export function buildRegularCleaningOccurrences(
+  input: RegularCleaningBookingInput,
+  occurrenceCount = RECURRING_OCCURRENCE_COUNT,
+): RegularCleaningOccurrence[] {
   if (input.frequency === "once") {
     return [{ index: 1, bookingDate: input.bookingDate, bookingTime: input.bookingTime }];
   }
 
   if (input.frequency === "monthly") {
-    return buildMonthlyOccurrences(input.bookingDate, input.bookingTime);
+    return buildMonthlyOccurrences(input.bookingDate, input.bookingTime, occurrenceCount);
   }
 
-  return buildWeeklyOccurrences(input);
+  return buildWeeklyOccurrences(input, occurrenceCount);
 }
 
 export function isRecurringFrequency(frequency: RegularCleaningBookingInput["frequency"]) {
@@ -60,14 +63,14 @@ export function formatRecurrenceSummary(
   return `${frequency === "weekly" ? "Weekly" : "Bi-weekly"} on ${dayLabels}`;
 }
 
-function buildWeeklyOccurrences(input: RegularCleaningBookingInput) {
+function buildWeeklyOccurrences(input: RegularCleaningBookingInput, occurrenceCount: number) {
   const occurrences: RegularCleaningOccurrence[] = [];
   const start = parseIsoDate(input.bookingDate);
   const selectedWeekdays = normalizeRecurrenceWeekdays(input.recurrenceWeekdays, input.bookingDate);
   const intervalWeeks = input.frequency === "fortnightly" ? 2 : 1;
   let cursor = start;
 
-  while (occurrences.length < RECURRING_OCCURRENCE_COUNT) {
+  while (occurrences.length < occurrenceCount) {
     const daysSinceStart = diffDays(start, cursor);
     const weekIndex = Math.floor(daysSinceStart / 7);
 
@@ -85,12 +88,12 @@ function buildWeeklyOccurrences(input: RegularCleaningBookingInput) {
   return occurrences;
 }
 
-function buildMonthlyOccurrences(bookingDate: string, bookingTime: string) {
+function buildMonthlyOccurrences(bookingDate: string, bookingTime: string, occurrenceCount: number) {
   const occurrences: RegularCleaningOccurrence[] = [];
   const start = parseIsoDate(bookingDate);
   const dayOfMonth = start.getUTCDate();
 
-  for (let index = 0; index < RECURRING_OCCURRENCE_COUNT; index += 1) {
+  for (let index = 0; index < occurrenceCount; index += 1) {
     const date = addMonthsClamped(start, index, dayOfMonth);
     occurrences.push({
       index: index + 1,

@@ -19,6 +19,7 @@ const adminMenuLinks = [
   { href: "/admin/customers", label: "Customers" },
   { href: "/admin/cleaners", label: "Cleaners" },
   { href: "/admin/payments", label: "Payments" },
+  { href: "/admin/pricing", label: "Pricing" },
   { href: "/admin/settings", label: "Settings" },
 ];
 

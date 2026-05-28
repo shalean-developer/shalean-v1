@@ -18,6 +18,7 @@ export const regularCleaningBookingInputSchema = z.object({
   bedrooms: z.number().int().min(0).max(12),
   bathrooms: z.number().int().min(0).max(12),
   extraRooms: z.number().int().min(0).max(12).default(0),
+  squareMeters: z.number().int().min(20).max(2000).default(80),
   selectedAddonKeys: z.array(z.string()).default([]),
   equipmentOptionKey: z.enum(["without_equipment", "with_equipment"]),
   cleanerCount: z.number().int().min(1).max(4),

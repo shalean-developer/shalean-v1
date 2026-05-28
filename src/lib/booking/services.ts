@@ -8,7 +8,6 @@ export const serviceCatalog: ServiceDefinition[] = [
     summary: "Recurring or once-off home cleaning with flexible cleaner selection.",
     description:
       "Reliable maintenance cleaning for apartments and houses, with optional equipment and preferred cleaner support.",
-    baseCents: 42000,
     minHours: 3,
     requiresTeam: false,
     allowMultipleCleaners: true,
@@ -22,7 +21,6 @@ export const serviceCatalog: ServiceDefinition[] = [
     summary: "Team-based intensive cleaning for detailed top-to-bottom resets.",
     description:
       "A structured deep clean for kitchens, bathrooms, living areas, detailed dusting, and high-touch surfaces.",
-    baseCents: 110000,
     minHours: 5,
     requiresTeam: true,
     allowMultipleCleaners: false,
@@ -36,7 +34,6 @@ export const serviceCatalog: ServiceDefinition[] = [
     summary: "Turnover cleaning for short-stay hosts with quality checks.",
     description:
       "Fast, checklist-led Airbnb turnover cleaning with linen, reset notes, and host-ready handover support.",
-    baseCents: 48000,
     minHours: 3,
     requiresTeam: false,
     allowMultipleCleaners: true,
@@ -50,7 +47,6 @@ export const serviceCatalog: ServiceDefinition[] = [
     summary: "Team dispatch for vacant homes, inspections, and handovers.",
     description:
       "A move-ready clean for empty homes, rental handovers, estate agents, and pre-occupation preparation.",
-    baseCents: 130000,
     minHours: 6,
     requiresTeam: true,
     allowMultipleCleaners: false,
@@ -64,7 +60,6 @@ export const serviceCatalog: ServiceDefinition[] = [
     summary: "Room-based carpet refresh with operational capacity planning.",
     description:
       "Professional carpet cleaning priced by room count and floor area, with dispatch notes for equipment needs.",
-    baseCents: 35000,
     minHours: 2,
     requiresTeam: false,
     allowMultipleCleaners: false,
@@ -78,7 +73,6 @@ export const serviceCatalog: ServiceDefinition[] = [
     summary: "Commercial cleaning for workspaces with recurring scheduling.",
     description:
       "Office cleaning for small teams and growing workplaces, including recurring scheduling and admin oversight.",
-    baseCents: 65000,
     minHours: 3,
     requiresTeam: false,
     allowMultipleCleaners: true,

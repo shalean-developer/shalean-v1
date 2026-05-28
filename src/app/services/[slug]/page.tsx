@@ -5,7 +5,6 @@ import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getService, serviceCatalog } from "@/lib/booking/services";
 import { siteConfig } from "@/lib/config/site";
-import { formatZar } from "@/lib/utils";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -46,8 +45,8 @@ export default async function ServicePage({ params }: Props) {
         <p className="mt-5 text-lg leading-8 text-slate-600">{service.description}</p>
         <div className="mt-8 grid gap-4 sm:grid-cols-3">
           <div className="rounded-lg bg-slate-50 p-5">
-            <p className="text-sm text-slate-500">Starting price</p>
-            <p className="mt-2 text-2xl font-bold">{formatZar(service.baseCents)}</p>
+            <p className="text-sm text-slate-500">Pricing</p>
+            <p className="mt-2 text-2xl font-bold">Live quote</p>
           </div>
           <div className="rounded-lg bg-slate-50 p-5">
             <p className="text-sm text-slate-500">Minimum hours</p>
