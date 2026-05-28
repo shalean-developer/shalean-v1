@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { AdminBookingListItem, CleanerRow } from "@/lib/admin/data";
@@ -66,18 +66,8 @@ export function AdminBookingsDataGrid({
   }, [bookings, cleanerFilter, cleanersById, dateFilter, paymentFilter, search, statusFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredBookings.length / PAGE_SIZE));
-
-  useEffect(() => {
-    setPage(1);
-  }, [search, statusFilter, cleanerFilter, paymentFilter, dateFilter]);
-
-  useEffect(() => {
-    if (page > totalPages) {
-      setPage(totalPages);
-    }
-  }, [page, totalPages]);
-
-  const paginatedBookings = filteredBookings.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const currentPage = Math.min(page, totalPages);
+  const paginatedBookings = filteredBookings.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-white sm:p-6">
@@ -102,34 +92,59 @@ export function AdminBookingsDataGrid({
               className="min-h-10 w-full bg-transparent px-2 text-sm text-slate-100 outline-none"
               placeholder="Customer, address, suburb, booking ID"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
             />
           </div>
         </label>
-        <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter} options={statusOptions} />
+        <FilterSelect
+          label="Status"
+          value={statusFilter}
+          options={statusOptions}
+          onChange={(value) => {
+            setStatusFilter(value);
+            setPage(1);
+          }}
+        />
         <FilterSelect
           label="Cleaner"
           value={cleanerFilter}
-          onChange={setCleanerFilter}
           options={[
             "all",
             "unassigned",
             ...cleaners.map((cleaner) => cleaner.id),
           ]}
+          onChange={(value) => {
+            setCleanerFilter(value);
+            setPage(1);
+          }}
           formatLabel={(value) => {
             if (value === "all") return "All";
             if (value === "unassigned") return "Unassigned";
             return cleanersById.get(value) ?? value;
           }}
         />
-        <FilterSelect label="Payment" value={paymentFilter} onChange={setPaymentFilter} options={paymentOptions} />
+        <FilterSelect
+          label="Payment"
+          value={paymentFilter}
+          options={paymentOptions}
+          onChange={(value) => {
+            setPaymentFilter(value);
+            setPage(1);
+          }}
+        />
         <label>
           <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Date</span>
           <input
             className="mt-2 min-h-10 w-full rounded-md border border-white/15 bg-slate-900/70 px-3 text-sm text-slate-100 outline-none focus:border-emerald-400"
             type="date"
             value={dateFilter}
-            onChange={(event) => setDateFilter(event.target.value)}
+            onChange={(event) => {
+              setDateFilter(event.target.value);
+              setPage(1);
+            }}
           />
         </label>
       </div>
@@ -211,21 +226,21 @@ export function AdminBookingsDataGrid({
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
-        <p className="text-sm text-slate-300">Page {page} of {totalPages}</p>
+        <p className="text-sm text-slate-300">Page {currentPage} of {totalPages}</p>
         <div className="flex items-center gap-2">
           <button
             className="rounded-md border border-white/20 px-3 py-1.5 text-sm font-semibold text-slate-100 transition hover:bg-white/10 disabled:opacity-40"
             type="button"
-            onClick={() => setPage((current) => Math.max(1, current - 1))}
-            disabled={page === 1}
+            onClick={() => setPage((current) => Math.max(1, Math.min(totalPages, current) - 1))}
+            disabled={currentPage === 1}
           >
             Previous
           </button>
           <button
             className="rounded-md border border-white/20 px-3 py-1.5 text-sm font-semibold text-slate-100 transition hover:bg-white/10 disabled:opacity-40"
             type="button"
-            onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-            disabled={page === totalPages}
+            onClick={() => setPage((current) => Math.min(totalPages, Math.min(totalPages, current) + 1))}
+            disabled={currentPage === totalPages}
           >
             Next
           </button>
