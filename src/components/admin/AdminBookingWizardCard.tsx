@@ -214,7 +214,7 @@ export function AdminBookingWizardCard({
             </div>
             <div className="grid gap-3 lg:grid-cols-4">
               <WizardInput label="Bedrooms" name="bedrooms" type="number" min={0} required value={bedrooms} onChange={setBedrooms} />
-              <WizardInput label="Bathrooms" name="bathrooms" type="number" min={0} required value={bathrooms} onChange={setBathrooms} />
+              <WizardInput label="Bathrooms" name="bathrooms" type="number" min={1} required value={bathrooms} onChange={setBathrooms} />
               <WizardInput label="Extra rooms" name="extraRooms" type="number" min={0} required value={extraRooms} onChange={setExtraRooms} />
               <WizardInput label="Cleaners" name="cleanerCount" type="number" min={1} max={4} required value={cleanerCount} onChange={setCleanerCount} />
             </div>
