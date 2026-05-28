@@ -54,7 +54,7 @@ export function AdminLayoutShell({
 
   return (
     <>
-      <DashboardHeader active="admin" theme="light" />
+      <DashboardHeader active="admin" theme="light" sticky />
       <main className="min-h-screen bg-slate-50 px-4 pb-10 pt-6 text-slate-950 sm:px-6 lg:px-8">
         <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 lg:flex-row lg:items-start lg:gap-8">
           <AdminRouteNav stats={stats} />
