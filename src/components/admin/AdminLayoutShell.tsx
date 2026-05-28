@@ -35,7 +35,7 @@ export function AdminLayoutShell({
   const firstName = adminName.trim().split(/\s+/)[0] || "Admin";
 
   return (
-    <main className="min-h-screen bg-[#f3f5f7] text-slate-950 lg:h-screen lg:overflow-hidden">
+    <main className="min-h-screen bg-[#f3f5f7] text-slate-950">
       <header className="sticky top-0 z-40 w-full border-b border-slate-200 bg-white shadow-sm">
         <div className="flex w-full flex-col gap-3 px-3 py-3 sm:px-4 lg:flex-row lg:items-center lg:justify-between lg:px-6">
           <div className="flex items-center gap-2 text-slate-900">
@@ -107,9 +107,9 @@ export function AdminLayoutShell({
           </div>
         </div>
       </header>
-      <div className="flex w-full flex-col gap-4 px-3 pb-8 pt-4 sm:px-4 lg:min-h-0 lg:flex-1 lg:flex-row lg:items-start lg:gap-6 lg:overflow-hidden lg:px-6">
+      <div className="flex w-full flex-col gap-4 px-3 pb-8 pt-4 sm:px-4 lg:flex-row lg:items-start lg:gap-6 lg:px-6">
         <AdminRouteNav stats={stats} />
-        <div className="min-w-0 flex-1 space-y-4 lg:h-full lg:overflow-y-auto lg:pr-1">
+        <div className="min-w-0 flex-1 space-y-4">
           {children}
         </div>
       </div>
