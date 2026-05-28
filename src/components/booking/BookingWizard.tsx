@@ -433,42 +433,42 @@ export function BookingWizard() {
         </div>
       </div>
 
-      <aside className="rounded-lg border border-slate-200 bg-slate-950 p-5 text-white shadow-sm lg:sticky lg:top-6 lg:self-start">
-        <Badge className="border-teal-300 bg-teal-100 text-teal-900">{isQuoteLoading ? "Refreshing estimate" : "Live estimate"}</Badge>
+      <aside className="rounded-lg border border-slate-200 bg-white p-5 text-slate-950 shadow-sm lg:sticky lg:top-6 lg:self-start">
+        <Badge className="border-emerald-200 bg-emerald-50 text-emerald-800">{isQuoteLoading ? "Refreshing estimate" : "Live estimate"}</Badge>
         <h2 className="mt-4 text-2xl font-bold">{formatZar(quote.totalCents)}</h2>
-        <p className="mt-2 text-sm text-slate-300">{service.title} in {draft.suburb || "Cape Town"}</p>
-        {quoteError ? <p className="mt-3 rounded-md bg-red-500/15 p-2 text-xs text-red-100">{quoteError}</p> : null}
+        <p className="mt-2 text-sm text-slate-600">{service.title} in {draft.suburb || "Cape Town"}</p>
+        {quoteError ? <p className="mt-3 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">{quoteError}</p> : null}
         {serverQuote?.isRecurring ? (
-          <p className="mt-3 rounded-md bg-white/10 p-2 text-xs text-teal-100">
+          <p className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-900">
             {serverQuote.occurrences.length} prepaid visits. {formatRecurrenceSummary(draft.frequency, draft.recurrence.weekdays)}.
           </p>
         ) : null}
         <dl className="mt-5 grid grid-cols-2 gap-3 text-sm">
-          <div className="rounded-md bg-white/10 p-3">
-            <dt className="text-slate-300">Cleaners</dt>
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <dt className="text-slate-600">Cleaners</dt>
             <dd className="text-lg font-semibold">{quote.cleanerCount}</dd>
           </div>
-          <div className="rounded-md bg-white/10 p-3">
-            <dt className="text-slate-300">Hours</dt>
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <dt className="text-slate-600">Hours</dt>
             <dd className="text-lg font-semibold">{quote.estimatedHours}</dd>
           </div>
         </dl>
-        <p className="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-400">Price breakdown</p>
+        <p className="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-500">Price breakdown</p>
         <div className="mt-2 space-y-2 text-sm">
           {quote.lineItems.map((item) => (
-            <div key={item.label} className="flex justify-between gap-3 text-slate-200">
-              <span className="capitalize">{item.label}</span>
-              <span>{formatZar(item.amountCents)}</span>
+            <div key={item.label} className="flex justify-between gap-3">
+              <span className="capitalize text-slate-600">{item.label}</span>
+              <span className="font-semibold text-slate-950">{formatZar(item.amountCents)}</span>
             </div>
           ))}
           {quote.discountCents > 0 ? (
-            <div className="flex justify-between text-teal-200">
+            <div className="flex justify-between text-emerald-700">
               <span>Recurring discount</span>
               <span>-{formatZar(quote.discountCents)}</span>
             </div>
           ) : null}
         </div>
-        <div className="mt-5 border-t border-white/15 pt-4 text-xs leading-5 text-slate-400">
+        <div className="mt-5 border-t border-slate-200 pt-4 text-xs leading-5 text-slate-500">
           Your final checkout uses the latest confirmed quote.
         </div>
       </aside>
