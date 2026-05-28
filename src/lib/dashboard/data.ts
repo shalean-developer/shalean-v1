@@ -1,4 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { buildCleanerEarningsSummary } from "@/lib/cleaner/earnings";
+import { getCleanerName } from "@/lib/cleaner/format";
+import type { CleanerProfileSummary } from "@/lib/cleaner/types";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -170,15 +173,27 @@ export async function loadCleanerDashboard({ cleanerId }: { cleanerId?: string |
     })
     .filter((job): job is CleanerDashboardJob => Boolean(job));
 
-  const offers = jobs.filter((job) => job.offer.status === "offered");
-  const upcomingJobs = jobs.filter((job) => isUpcomingCleanerJob(job));
-  const inProgressJobs = jobs.filter((job) => job.offer.status === "in_progress");
-  const completedJobs = jobs.filter((job) => job.offer.status === "completed");
-  const activeJobs = [...upcomingJobs, ...inProgressJobs];
   const today = new Date().toISOString().slice(0, 10);
-  const todaysEarningsCents = jobs
-    .filter((job) => job.booking.booking_date === today && ["accepted", "in_progress", "completed"].includes(job.offer.status))
-    .reduce((total, job) => total + (job.offer.earning_cents ?? 0), 0);
+  const { offers, todayJobs, upcomingJobs, completedJobs, activeJobs } = partitionCleanerDashboardJobs(jobs, today);
+  const acceptedJobs = jobs.filter((job) => job.offer.status === "accepted");
+  const inProgressJobs = jobs.filter((job) => job.offer.status === "in_progress");
+  const earnings = buildCleanerEarningsSummary(jobs);
+  const todaysEarningsCents = earnings.todayCents;
+  const profile: CleanerProfileSummary | null = selectedCleaner
+    ? {
+      id: selectedCleaner.id,
+      name: getCleanerName(selectedCleaner),
+      photoUrl: selectedCleaner.photo_url,
+      phone: selectedCleaner.phone,
+      available: selectedCleaner.available,
+      active: selectedCleaner.active,
+      equipmentEligible: selectedCleaner.equipment_eligible,
+      rating: selectedCleaner.rating,
+      tenureMonths: selectedCleaner.tenure_months,
+      suburbs: selectedCleaner.suburbs,
+      serviceSlugs: selectedCleaner.service_slugs,
+    }
+    : null;
   const verification = selectedCleaner
     ? [
       {
@@ -197,15 +212,33 @@ export async function loadCleanerDashboard({ cleanerId }: { cleanerId?: string |
     cleanerId: validCleanerId,
     requestedCleanerId: cleanerId ?? null,
     selectedCleaner,
+    profile,
     allCleaners,
     offers,
+    todayJobs,
+    acceptedJobs,
     upcomingJobs,
     inProgressJobs,
     completedJobs,
     activeJobs,
+    earnings,
     todaysEarningsCents,
     verification,
   };
+}
+
+export function partitionCleanerDashboardJobs(jobs: CleanerDashboardJob[], today: string) {
+  const offers = jobs.filter((job) => job.offer.status === "offered");
+  const completedJobs = jobs.filter((job) => job.offer.status === "completed");
+  const activeJobs = jobs.filter((job) => isActiveCleanerJob(job));
+  const todayJobs = activeJobs.filter((job) => job.booking.booking_date <= today);
+  const upcomingJobs = activeJobs.filter((job) => job.booking.booking_date > today);
+
+  return { offers, todayJobs, upcomingJobs, completedJobs, activeJobs };
+}
+
+function isActiveCleanerJob(job: CleanerDashboardJob) {
+  return isUpcomingCleanerJob(job) || job.offer.status === "in_progress";
 }
 
 async function resolveAutoSelectedCleaner(supabase: Supabase, cleaners: CleanerRow[]) {
