@@ -38,7 +38,11 @@ export default async function CustomerDashboardPage({ searchParams }: PageProps)
     }
   }
 
-  const { booking } = await loadCustomerBookingDetail({ bookingId, customerAuthUserId: user.id });
+  const { booking } = await loadCustomerBookingDetail({
+    bookingId,
+    customerAuthUserId: user.id,
+    customerEmail: user.email,
+  });
 
   return (
     <DashboardShell title="Booking details" eyebrow="Customer booking">

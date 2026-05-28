@@ -15,7 +15,10 @@ export const dynamic = "force-dynamic";
 
 export default async function BookingsPage() {
   const { user } = await requireCustomer();
-  const { items } = await loadCustomerBookingsList({ customerAuthUserId: user.id });
+  const { items } = await loadCustomerBookingsList({
+    customerAuthUserId: user.id,
+    customerEmail: user.email,
+  });
 
   return (
     <>

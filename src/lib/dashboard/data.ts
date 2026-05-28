@@ -46,13 +46,31 @@ export type CustomerBookingListItem = {
   bookingStatus: string;
 };
 
-export async function loadCustomerDashboard({ bookingId, customerAuthUserId }: { bookingId?: string | null; customerAuthUserId?: string | null }) {
-  return loadCustomerBookingDetail({ bookingId, customerAuthUserId });
+export async function loadCustomerDashboard({
+  bookingId,
+  customerAuthUserId,
+  customerEmail,
+}: {
+  bookingId?: string | null;
+  customerAuthUserId?: string | null;
+  customerEmail?: string | null;
+}) {
+  return loadCustomerBookingDetail({ bookingId, customerAuthUserId, customerEmail });
 }
 
-export async function loadCustomerBookingDetail({ bookingId, customerAuthUserId }: { bookingId?: string | null; customerAuthUserId?: string | null }) {
+export async function loadCustomerBookingDetail({
+  bookingId,
+  customerAuthUserId,
+  customerEmail,
+}: {
+  bookingId?: string | null;
+  customerAuthUserId?: string | null;
+  customerEmail?: string | null;
+}) {
   const supabase = createSupabaseAdminClient();
-  const customerId = customerAuthUserId ? await loadCustomerIdByAuthUserId(supabase, customerAuthUserId) : null;
+  const customerId = customerAuthUserId
+    ? await loadCustomerIdForSession(supabase, customerAuthUserId, customerEmail)
+    : null;
   if (customerAuthUserId && !customerId) {
     return { booking: null };
   }
@@ -70,9 +88,17 @@ export async function loadCustomerBookingDetail({ bookingId, customerAuthUserId 
   return { booking: hydrated ?? null };
 }
 
-export async function loadCustomerBookingsList({ customerAuthUserId }: { customerAuthUserId?: string | null } = {}) {
+export async function loadCustomerBookingsList({
+  customerAuthUserId,
+  customerEmail,
+}: {
+  customerAuthUserId?: string | null;
+  customerEmail?: string | null;
+} = {}) {
   const supabase = createSupabaseAdminClient();
-  const customerId = customerAuthUserId ? await loadCustomerIdByAuthUserId(supabase, customerAuthUserId) : null;
+  const customerId = customerAuthUserId
+    ? await loadCustomerIdForSession(supabase, customerAuthUserId, customerEmail)
+    : null;
   if (customerAuthUserId && !customerId) {
     return { items: [] };
   }
@@ -287,15 +313,47 @@ async function loadRecentRegularBookings(supabase: Supabase, limit: number, cust
   return result.data ?? [];
 }
 
-async function loadCustomerIdByAuthUserId(supabase: Supabase, authUserId: string) {
-  const result = await supabase
+async function loadCustomerIdForSession(
+  supabase: Supabase,
+  authUserId: string,
+  customerEmail?: string | null,
+) {
+  const byAuthUserResult = await supabase
     .from("customers")
     .select("id")
     .eq("auth_user_id", authUserId)
     .maybeSingle();
 
-  if (result.error) throw result.error;
-  return result.data?.id ?? null;
+  if (byAuthUserResult.error) throw byAuthUserResult.error;
+  if (byAuthUserResult.data?.id) {
+    return byAuthUserResult.data.id;
+  }
+
+  const normalizedEmail = customerEmail?.trim().toLowerCase();
+  if (!normalizedEmail) {
+    return null;
+  }
+
+  const byEmailResult = await supabase
+    .from("customers")
+    .select("id, auth_user_id")
+    .eq("email_normalized", normalizedEmail)
+    .maybeSingle();
+  if (byEmailResult.error) throw byEmailResult.error;
+
+  if (!byEmailResult.data?.id) {
+    return null;
+  }
+
+  if (!byEmailResult.data.auth_user_id) {
+    const attachAuthResult = await supabase
+      .from("customers")
+      .update({ auth_user_id: authUserId })
+      .eq("id", byEmailResult.data.id);
+    if (attachAuthResult.error) throw attachAuthResult.error;
+  }
+
+  return byEmailResult.data.id;
 }
 
 async function loadBookingsByIds(supabase: Supabase, bookingIds: string[]) {

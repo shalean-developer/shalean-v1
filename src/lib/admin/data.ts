@@ -16,6 +16,11 @@ export type AdminPayment = PaymentRow & {
   customer: CustomerRow | null;
 };
 
+export type AdminBookingListItem = BookingRow & {
+  customer: CustomerRow | null;
+  payment: PaymentRow | null;
+};
+
 export async function loadAdminManagementData() {
   const supabase = createSupabaseAdminClient();
   const [cleanersResult, customersResult, addonsResult, equipmentResult] = await Promise.all([
@@ -73,6 +78,32 @@ export async function loadAdminPayments(status: AdminPaymentStatusFilter = "all"
   });
 }
 
+export async function loadAdminBookings(limit = 100) {
+  const supabase = createSupabaseAdminClient();
+  const bookingsResult = await supabase
+    .from("bookings")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (bookingsResult.error) throw bookingsResult.error;
+
+  const bookings = bookingsResult.data ?? [];
+  const customerIds = compactUnique(bookings.map((booking) => booking.customer_id));
+  const bookingIds = bookings.map((booking) => booking.id);
+  const [customers, payments] = await Promise.all([
+    customerIds.length > 0 ? loadCustomersByIds(customerIds) : Promise.resolve([]),
+    bookingIds.length > 0 ? loadPaymentsByBookingIds(bookingIds) : Promise.resolve([]),
+  ]);
+
+  return bookings.map((booking) => ({
+    ...booking,
+    customer: booking.customer_id
+      ? customers.find((customer) => customer.id === booking.customer_id) ?? null
+      : null,
+    payment: payments.find((payment) => payment.booking_id === booking.id) ?? null,
+  } satisfies AdminBookingListItem));
+}
+
 async function loadBookingsByIds(ids: string[]) {
   const supabase = createSupabaseAdminClient();
   const result = await supabase.from("bookings").select("*").in("id", ids);
@@ -85,6 +116,24 @@ async function loadCustomersByIds(ids: string[]) {
   const result = await supabase.from("customers").select("*").in("id", ids);
   if (result.error) throw result.error;
   return result.data ?? [];
+}
+
+async function loadPaymentsByBookingIds(bookingIds: string[]) {
+  const supabase = createSupabaseAdminClient();
+  const result = await supabase
+    .from("payments")
+    .select("*")
+    .in("booking_id", bookingIds)
+    .order("created_at", { ascending: false });
+  if (result.error) throw result.error;
+
+  const latestByBooking = new Map<string, PaymentRow>();
+  for (const payment of result.data ?? []) {
+    if (!latestByBooking.has(payment.booking_id)) {
+      latestByBooking.set(payment.booking_id, payment);
+    }
+  }
+  return Array.from(latestByBooking.values());
 }
 
 function compactUnique(values: Array<string | null | undefined>) {

@@ -11,7 +11,7 @@ type CleanerAvailabilityRow = Database["public"]["Tables"]["cleaner_availability
 type CleanerTimeOffRow = Database["public"]["Tables"]["cleaner_time_off"]["Row"];
 type BusyBookingRow = Pick<BookingRow, "id" | "booking_date" | "booking_time">;
 
-const activeOfferStatuses = ["pending_payment", "offered", "accepted"];
+const blockingOfferStatuses = ["offered", "accepted", "in_progress"];
 const busyOfferStatuses = ["accepted", "in_progress"];
 
 type DispatchAvailabilityContext = {
@@ -83,9 +83,9 @@ async function dispatchOffersForBooking(
   availabilityContext: DispatchAvailabilityContext,
 ) {
   const acceptedCount = existingOffers.filter((offer) => offer.status === "accepted").length;
-  const activeOffers = existingOffers.filter((offer) => activeOfferStatuses.includes(offer.status) && offer.cleaner_id);
+  const openOffers = existingOffers.filter((offer) => offer.status === "offered");
 
-  if (acceptedCount >= booking.cleaner_count || activeOffers.some((offer) => offer.status === "offered")) {
+  if (acceptedCount >= booking.cleaner_count || openOffers.length > 0) {
     return;
   }
 
@@ -108,7 +108,7 @@ async function dispatchOffersForBooking(
   const placeholders = existingOffers.filter((offer) => ["pending_payment", "planned", "requested"].includes(offer.status));
 
   for (const cleaner of orderedCleaners) {
-    if (existingOffers.some((offer) => offer.cleaner_id === cleaner.id && activeOfferStatuses.includes(offer.status))) {
+    if (existingOffers.some((offer) => offer.cleaner_id === cleaner.id && blockingOfferStatuses.includes(offer.status))) {
       continue;
     }
 
@@ -224,8 +224,9 @@ async function loadDispatchAvailabilityContext(
       .in("status", busyOfferStatuses),
   ]);
 
-  if (weeklyWindowsResult.error) throw weeklyWindowsResult.error;
-  if (timeOffResult.error) throw timeOffResult.error;
+  const missingScheduleTables = hasMissingRelationError(weeklyWindowsResult.error) || hasMissingRelationError(timeOffResult.error);
+  if (weeklyWindowsResult.error && !missingScheduleTables) throw weeklyWindowsResult.error;
+  if (timeOffResult.error && !missingScheduleTables) throw timeOffResult.error;
   if (busyOffersResult.error) throw busyOffersResult.error;
 
   const weeklyWindowsByCleaner = new Map<string, CleanerAvailabilityRow[]>();
@@ -413,4 +414,11 @@ function normalizeClock(value: string) {
 
 function compactUnique(values: string[]) {
   return Array.from(new Set(values));
+}
+
+function hasMissingRelationError(error: { message?: string } | null) {
+  if (!error?.message) {
+    return false;
+  }
+  return /does not exist|could not find the table|relation/i.test(error.message);
 }
