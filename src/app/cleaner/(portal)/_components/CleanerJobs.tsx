@@ -9,7 +9,6 @@ import {
   MapPin,
   Play,
   RotateCcw,
-  Wallet,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -42,18 +41,14 @@ type CleanerJobsByCategory = {
 
 export function CleanerQuickStats({
   jobs,
-  todaysEarningsCents,
 }: {
   jobs: CleanerJobsByCategory;
-  todaysEarningsCents: number;
 }) {
-  const activeCount = jobs.upcomingJobs.length + jobs.inProgressJobs.length;
-
   return (
     <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      <StatCard icon={<Wallet className="h-4 w-4" />} label="Today earnings" value={formatZar(todaysEarningsCents)} />
       <StatCard icon={<Briefcase className="h-4 w-4" />} label="Offers" value={String(jobs.offers.length)} />
-      <StatCard icon={<Clock className="h-4 w-4" />} label="Active jobs" value={String(activeCount)} />
+      <StatCard icon={<Clock className="h-4 w-4" />} label="Upcoming" value={String(jobs.upcomingJobs.length)} />
+      <StatCard icon={<Play className="h-4 w-4" />} label="In Progress" value={String(jobs.inProgressJobs.length)} />
       <StatCard icon={<CheckCircle2 className="h-4 w-4" />} label="Completed" value={String(jobs.completedJobs.length)} />
     </section>
   );

@@ -35,7 +35,6 @@ export default async function CleanerDashboardPage() {
           inProgressJobs: dashboard.inProgressJobs,
           completedJobs: dashboard.completedJobs,
         }}
-        todaysEarningsCents={dashboard.todaysEarningsCents}
       />
 
       <div className="grid gap-3 sm:gap-4 xl:grid-cols-[1fr_320px]">

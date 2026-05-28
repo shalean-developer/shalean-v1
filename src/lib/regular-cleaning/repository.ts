@@ -116,6 +116,14 @@ export async function createRegularCleaningBooking(
       seriesTotalCents: quoteResponse.seriesTotalCents,
     },
   ));
+  logRegularCleaningDebug("BOOKING_INSERT_PAYLOAD", {
+    checkoutId: input.checkoutId,
+    customerId,
+    selectedCleanerId: selectedCleaner?.id ?? null,
+    occurrenceCount: bookingRows.length,
+    bookingStatuses: bookingRows.map((row) => row.booking_status),
+    paymentStatuses: bookingRows.map((row) => row.payment_status),
+  });
 
   const bookingResult = await supabase
     .from("bookings")
@@ -154,13 +162,26 @@ export async function createRegularCleaningBooking(
   })));
   if (equipmentResult.error) throw equipmentResult.error;
 
-  const bookingCleanerResult = await supabase.from("booking_cleaners").insert(bookings.map((booking) => ({
+  const bookingCleanerRows = bookings.map((booking) => ({
     booking_id: booking.id,
     cleaner_id: selectedCleaner?.id ?? null,
     cleaner_count: quote.cleanerCount,
     is_preferred: Boolean(selectedCleaner),
     status: "pending_payment",
-  })));
+  }));
+  logRegularCleaningDebug("BOOKING_CLEANER_INSERT_PAYLOAD", {
+    checkoutId: input.checkoutId,
+    selectedCleanerId: selectedCleaner?.id ?? null,
+    rows: bookingCleanerRows.map((row) => ({
+      booking_id: row.booking_id,
+      cleaner_id: row.cleaner_id,
+      cleaner_count: row.cleaner_count,
+      is_preferred: row.is_preferred,
+      status: row.status,
+    })),
+  });
+
+  const bookingCleanerResult = await supabase.from("booking_cleaners").insert(bookingCleanerRows);
   if (bookingCleanerResult.error) throw bookingCleanerResult.error;
 
   return {
@@ -297,4 +318,11 @@ async function createRecurringSeries(
   if (result.error) throw result.error;
 
   return result.data.id;
+}
+
+function logRegularCleaningDebug(event: string, payload: Record<string, unknown>) {
+  if (process.env.NODE_ENV === "production") {
+    return;
+  }
+  console.info(event, payload);
 }

@@ -82,7 +82,9 @@ async function dispatchOffersForBooking(
   existingOffers: BookingCleanerRow[],
   availabilityContext: DispatchAvailabilityContext,
 ) {
-  const acceptedCount = existingOffers.filter((offer) => offer.status === "accepted").length;
+  existingOffers = await ensureCustomerSelectedCleanerAccepted(supabase, booking, cleaners, existingOffers);
+
+  const acceptedCount = countConfirmedCleanerSlots(existingOffers);
   const openOffers = existingOffers.filter((offer) => offer.status === "offered");
 
   if (acceptedCount >= booking.cleaner_count || openOffers.length > 0) {
@@ -138,6 +140,69 @@ async function dispatchOffersForBooking(
 
     if (result.error) throw result.error;
   }
+}
+
+async function ensureCustomerSelectedCleanerAccepted(
+  supabase: Supabase,
+  booking: BookingRow,
+  cleaners: CleanerRow[],
+  existingOffers: BookingCleanerRow[],
+) {
+  const selectedCleanerId = booking.selected_cleaner_id;
+  if (!selectedCleanerId) {
+    return existingOffers;
+  }
+
+  const preferredOffer = existingOffers.find((offer) => offer.cleaner_id === selectedCleanerId);
+  if (preferredOffer && ["accepted", "in_progress", "completed"].includes(preferredOffer.status)) {
+    return existingOffers;
+  }
+
+  const cleaner = cleaners.find((candidate) => candidate.id === selectedCleanerId);
+  const earningSnapshot = cleaner ? calculateRegularCleaningEarningForBooking(booking, cleaner) : null;
+  const earningPayload = earningSnapshot && isValidRegularCleaningEarning(earningSnapshot)
+    ? {
+      earning_cents: earningSnapshot.earningCents,
+      eligible_value_cents: earningSnapshot.eligibleValueCents,
+      earning_rate_percent: earningSnapshot.earningRatePercent,
+      earning_rule: earningSnapshot.earningRule,
+    }
+    : {};
+  const now = new Date().toISOString();
+  const payload = {
+    booking_id: booking.id,
+    cleaner_id: selectedCleanerId,
+    cleaner_count: booking.cleaner_count,
+    is_preferred: true,
+    status: "accepted",
+    offered_at: preferredOffer?.offered_at ?? now,
+    accepted_at: now,
+    declined_at: null,
+    decline_reason: null,
+    offer_expires_at: null,
+    ...earningPayload,
+  };
+  const writeResult = preferredOffer
+    ? await supabase.from("booking_cleaners").update(payload).eq("id", preferredOffer.id).select("*").single()
+    : await supabase.from("booking_cleaners").insert(payload).select("*").single();
+
+  if (writeResult.error) throw writeResult.error;
+
+  const acceptedOffer = writeResult.data;
+  const mergedOffers = preferredOffer
+    ? existingOffers.map((offer) => offer.id === acceptedOffer.id ? acceptedOffer : offer)
+    : [...existingOffers, acceptedOffer];
+
+  if (countConfirmedCleanerSlots(mergedOffers) >= booking.cleaner_count && booking.booking_status === "confirmed") {
+    const bookingUpdate = await supabase
+      .from("bookings")
+      .update({ booking_status: "assigned", selected_cleaner_id: selectedCleanerId })
+      .eq("id", booking.id);
+
+    if (bookingUpdate.error) throw bookingUpdate.error;
+  }
+
+  return mergedOffers;
 }
 
 async function markAdminReassignment(
@@ -418,6 +483,10 @@ function compactUnique(values: string[]) {
 
 export function blocksDispatchForCleanerOfferStatus(status: string) {
   return blockingOfferStatuses.includes(status);
+}
+
+function countConfirmedCleanerSlots(offers: BookingCleanerRow[]) {
+  return offers.filter((offer) => ["accepted", "in_progress", "completed"].includes(offer.status)).length;
 }
 
 function hasMissingRelationError(error: { message?: string } | null) {

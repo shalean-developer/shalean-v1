@@ -129,16 +129,32 @@ export async function loadCleanerDashboard({ cleanerId }: { cleanerId?: string |
     : null;
   const selectedCleaner = requestedCleaner ?? (!cleanerId ? await resolveAutoSelectedCleaner(supabase, allCleaners) : null);
   const validCleanerId = selectedCleaner?.id ?? null;
+  logCleanerDashboardDebug("CLEANER_DASHBOARD_CONTEXT", {
+    requestedCleanerId: cleanerId ?? null,
+    normalizedCleanerId,
+    resolvedCleanerId: validCleanerId,
+  });
   const offerRows = await loadCleanerOfferRows(supabase, validCleanerId);
   const bookings = offerRows.length > 0
     ? await loadBookingsByIds(supabase, compactUnique(offerRows.map((offer) => offer.booking_id)))
     : [];
   const hydrated = await hydrateBookings(supabase, bookings);
+  logCleanerDashboardDebug("CLEANER_DASHBOARD_BOOKINGS", {
+    resolvedCleanerId: validCleanerId,
+    offerRows: offerRows.map((offer) => ({
+      id: offer.id,
+      booking_id: offer.booking_id,
+      cleaner_id: offer.cleaner_id,
+      status: offer.status,
+      is_preferred: offer.is_preferred,
+    })),
+    bookingIds: hydrated.map((booking) => booking.id),
+  });
   const offerCleaners = await selectCleanersByIds(supabase, compactUnique(offerRows.map((offer) => offer.cleaner_id)));
   const jobs = offerRows
     .map((offer) => {
       const booking = hydrated.find((item) => item.id === offer.booking_id);
-      if (!booking || !offer.earning_cents || offer.earning_cents <= 0) {
+      if (!booking) {
         return null;
       }
 
@@ -155,7 +171,7 @@ export async function loadCleanerDashboard({ cleanerId }: { cleanerId?: string |
     .filter((job): job is CleanerDashboardJob => Boolean(job));
 
   const offers = jobs.filter((job) => job.offer.status === "offered");
-  const upcomingJobs = jobs.filter((job) => job.offer.status === "accepted");
+  const upcomingJobs = jobs.filter((job) => isUpcomingCleanerJob(job));
   const inProgressJobs = jobs.filter((job) => job.offer.status === "in_progress");
   const completedJobs = jobs.filter((job) => job.offer.status === "completed");
   const activeJobs = [...upcomingJobs, ...inProgressJobs];
@@ -379,7 +395,7 @@ async function loadCleanerOfferRows(supabase: Supabase, cleanerId?: string | nul
   let query = supabase
     .from("booking_cleaners")
     .select("*")
-    .in("status", ["offered", "accepted", "in_progress", "completed"])
+    .in("status", ["pending_payment", "offered", "accepted", "in_progress", "completed"])
     .order("created_at", { ascending: false })
     .limit(80);
 
@@ -603,4 +619,22 @@ function compareBookingsByDate(left: BookingRow, right: BookingRow) {
 
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function isUpcomingCleanerJob(job: CleanerDashboardJob) {
+  if (job.offer.status === "accepted") {
+    return true;
+  }
+
+  return job.offer.status === "pending_payment" &&
+    job.booking.payment_status === "paid" &&
+    job.booking.selected_cleaner_id === job.offer.cleaner_id;
+}
+
+function logCleanerDashboardDebug(event: string, payload: Record<string, unknown>) {
+  if (process.env.NODE_ENV === "production") {
+    return;
+  }
+
+  console.info(event, payload);
 }
