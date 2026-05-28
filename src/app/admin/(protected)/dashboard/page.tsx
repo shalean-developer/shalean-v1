@@ -60,7 +60,7 @@ export default async function AdminDashboardPage() {
         </div>
       </section>
 
-      <section className="grid grid-flow-col auto-cols-[minmax(180px,1fr)] gap-3 overflow-x-auto pb-1">
+      <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {model.kpis.map((kpi) => (
           <KpiCard key={kpi.label} {...kpi} />
         ))}
@@ -323,19 +323,24 @@ function KpiCard({ label, value, detail, icon: Icon, tone }: Kpi) {
     rose: "border-rose-100 bg-rose-50 text-rose-700",
     slate: "border-slate-200 bg-slate-50 text-slate-700",
   }[tone];
+  const detailToneClass = {
+    green: "text-emerald-600",
+    blue: "text-sky-600",
+    orange: "text-amber-600",
+    rose: "text-rose-600",
+    slate: "text-slate-500",
+  }[tone];
 
   return (
-    <Card className="h-full border-slate-200 bg-white p-4 text-slate-900 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-slate-600">{label}</p>
-          <p className="mt-2 text-3xl font-black tracking-tight text-slate-950">{value}</p>
-        </div>
-        <span className={`rounded-xl border p-2 ${toneClass}`}>
-          <Icon className="h-4 w-4" />
+    <Card className="h-full border-slate-200 bg-white px-3 py-3 text-center text-slate-900 shadow-sm">
+      <div className="flex flex-col items-center gap-2">
+        <span className={`rounded-lg border p-1.5 ${toneClass}`}>
+          <Icon className="h-3.5 w-3.5" />
         </span>
+        <p className="text-xs font-semibold text-slate-600">{label}</p>
+        <p className="text-3xl font-black tracking-tight text-slate-950">{value}</p>
+        <p className={`text-xs font-semibold ${detailToneClass}`}>{detail}</p>
       </div>
-      <p className="mt-2 text-xs font-semibold text-slate-500">{detail}</p>
     </Card>
   );
 }
