@@ -1,10 +1,12 @@
 "use client";
 
 import type React from "react";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useId, useMemo, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import {
+  Calendar,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CreditCard,
@@ -693,18 +695,18 @@ function renderStep({
     case 1:
       return (
         <FieldGrid title="Schedule" subtitle="Choose when you would like your cleaner to arrive.">
-          <Select label="Frequency" value={draft.frequency} onChange={(value) => update("frequency", value as BookingDraft["frequency"])}>
+          <ScheduleSelect label="Frequency" value={draft.frequency} onChange={(value) => update("frequency", value as BookingDraft["frequency"])}>
             <option value="once">Once-off</option>
             <option value="weekly">Weekly</option>
             <option value="fortnightly">Fortnightly</option>
             <option value="monthly">Monthly</option>
-          </Select>
-          <Input label="Preferred date" type="date" min={todayInJohannesburg()} value={draft.date} onChange={(value) => update("date", value)} helper="Pick today or any future date." />
-          <Select label="Arrival window" value={draft.timeWindow} onChange={(value) => update("timeWindow", value)}>
+          </ScheduleSelect>
+          <ScheduleDateInput label="Preferred date" min={todayInJohannesburg()} value={draft.date} onChange={(value) => update("date", value)} helper="Pick today or any future date." />
+          <ScheduleSelect label="Arrival window" value={draft.timeWindow} onChange={(value) => update("timeWindow", value)}>
             <option value="08:00-12:00">Morning (08:00 - 12:00)</option>
             <option value="12:00-16:00">Afternoon (12:00 - 16:00)</option>
             <option value="16:00-19:00">Evening (16:00 - 19:00)</option>
-          </Select>
+          </ScheduleSelect>
           {draft.frequency === "weekly" || draft.frequency === "fortnightly" ? (
             <WeekdaySelector
               selectedWeekdays={draft.recurrence.weekdays}
@@ -1774,5 +1776,102 @@ function Select({
         {children}
       </select>
     </label>
+  );
+}
+
+const scheduleFieldBaseClasses =
+  "h-14 w-full rounded-[14px] border bg-white text-base text-[#0f1e35] outline-none transition-colors hover:border-[#b6c5d4] focus:border-emerald-700 focus:ring-2 focus:ring-emerald-600/25 disabled:cursor-not-allowed disabled:border-[#d6e0ea] disabled:bg-slate-100 disabled:text-slate-400 disabled:hover:border-[#d6e0ea]";
+
+function scheduleBorderClasses(error?: string) {
+  return error
+    ? "border-red-500 focus:border-red-500 focus:ring-red-500/25"
+    : "border-[#d6e0ea]";
+}
+
+function ScheduleSelect({
+  label,
+  value,
+  onChange,
+  children,
+  helper,
+  error,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  children: React.ReactNode;
+  helper?: string;
+  error?: string;
+  disabled?: boolean;
+}) {
+  const id = useId();
+  return (
+    <div>
+      <label htmlFor={id} className="text-sm font-semibold text-slate-800">
+        {label}
+      </label>
+      <div className="relative mt-2">
+        <select
+          id={id}
+          value={value}
+          disabled={disabled}
+          aria-invalid={error ? true : undefined}
+          onChange={(event) => onChange(event.target.value)}
+          className={cn(scheduleFieldBaseClasses, "appearance-none pl-4 pr-11", scheduleBorderClasses(error))}
+        >
+          {children}
+        </select>
+        <ChevronDown aria-hidden className="pointer-events-none absolute right-4 top-1/2 size-5 -translate-y-1/2 text-slate-500" />
+      </div>
+      {error ? (
+        <span className="mt-1.5 block text-xs font-medium leading-5 text-red-600">{error}</span>
+      ) : helper ? (
+        <span className="mt-1.5 block text-xs leading-5 text-slate-500">{helper}</span>
+      ) : null}
+    </div>
+  );
+}
+
+function ScheduleDateInput({
+  label,
+  value,
+  onChange,
+  helper,
+  error,
+  disabled,
+  ...props
+}: Omit<React.InputHTMLAttributes<HTMLInputElement>, "onChange" | "type"> & {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  helper?: string;
+  error?: string;
+}) {
+  const id = useId();
+  return (
+    <div>
+      <label htmlFor={id} className="text-sm font-semibold text-slate-800">
+        {label}
+      </label>
+      <div className="relative mt-2">
+        <input
+          id={id}
+          type="date"
+          value={value}
+          disabled={disabled}
+          aria-invalid={error ? true : undefined}
+          onChange={(event) => onChange(event.target.value)}
+          className={cn(scheduleFieldBaseClasses, "schedule-date-field pl-4 pr-12", scheduleBorderClasses(error))}
+          {...props}
+        />
+        <Calendar aria-hidden className="pointer-events-none absolute right-4 top-1/2 size-5 -translate-y-1/2 text-slate-500" />
+      </div>
+      {error ? (
+        <span className="mt-1.5 block text-xs font-medium leading-5 text-red-600">{error}</span>
+      ) : helper ? (
+        <span className="mt-1.5 block text-xs leading-5 text-slate-500">{helper}</span>
+      ) : null}
+    </div>
   );
 }
