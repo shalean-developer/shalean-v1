@@ -1,6 +1,5 @@
 import type React from "react";
 import { Bell, Search } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { AdminRouteNav } from "@/components/admin/AdminRouteNav";
 
 type AdminStats = {
@@ -19,12 +18,6 @@ export function AdminLayoutShell({
   stats: AdminStats;
   children: React.ReactNode;
 }) {
-  const todayLabel = new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    timeZone: "Africa/Johannesburg",
-  }).format(new Date());
   const adminInitial = adminName.trim().charAt(0).toUpperCase() || "A";
 
   return (
@@ -53,7 +46,6 @@ export function AdminLayoutShell({
               </div>
               <div className="flex flex-col gap-3 lg:items-end">
                 <div className="flex items-center justify-between gap-3 sm:justify-end">
-                  <Badge className="border-slate-200 bg-slate-50 text-slate-700">Open bookings: {stats.openBookings}</Badge>
                   <button
                     type="button"
                     className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
@@ -71,7 +63,6 @@ export function AdminLayoutShell({
                     </div>
                   </div>
                 </div>
-                <Badge className="w-fit border-slate-200 bg-white text-slate-600">{todayLabel}</Badge>
               </div>
             </div>
           </header>
