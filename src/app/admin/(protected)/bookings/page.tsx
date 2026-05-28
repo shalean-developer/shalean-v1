@@ -86,6 +86,10 @@ export default async function AdminBookingsPage({ searchParams }: PageProps) {
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
             Selected cleaner is currently unavailable for this suburb. Choose Auto-assign or select a different cleaner.
           </div>
+        ) : actionError === "assignment-required" ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+            Please choose a cleaner assignment option before creating the booking.
+          </div>
         ) : actionError === "create-failed" ? (
           <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-900">
             Admin booking could not be created due to a server error. Please verify the form details and try again.

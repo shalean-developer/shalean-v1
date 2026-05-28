@@ -25,6 +25,7 @@ import type { Database } from "@/lib/supabase/database.types";
 
 type SupabaseAdmin = ReturnType<typeof createSupabaseAdminClient>;
 type AdminRole = "customer" | "cleaner" | "admin";
+const AUTO_ASSIGN_SENTINEL = "__auto_assign__";
 
 export async function createCleanerAction(formData: FormData) {
   const { profile } = await requireAdmin();
@@ -201,7 +202,11 @@ export async function createAdminBookingAction(formData: FormData) {
 
   const frequency = requiredString(formData, "frequency") as RegularCleaningBookingInput["frequency"];
   const bookingDate = requiredString(formData, "bookingDate");
-  const selectedCleanerId = optionalString(formData, "selectedCleanerId");
+  const selectedCleanerChoice = optionalString(formData, "selectedCleanerId");
+  if (!selectedCleanerChoice) {
+    redirect("/admin/bookings?error=assignment-required");
+  }
+  const selectedCleanerId = selectedCleanerChoice === AUTO_ASSIGN_SENTINEL ? null : selectedCleanerChoice;
   const bookingInput: RegularCleaningBookingInput = {
     checkoutId: randomUUID(),
     serviceSlug: REGULAR_CLEANING_SLUG,

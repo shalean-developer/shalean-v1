@@ -13,6 +13,7 @@ const wizardSteps = [
   "Services & add-ons",
   "Assignment & summary",
 ] as const;
+const AUTO_ASSIGN_SENTINEL = "__auto_assign__";
 
 export function AdminBookingWizardCard({
   action,
@@ -41,7 +42,7 @@ export function AdminBookingWizardCard({
   const [bathrooms, setBathrooms] = useState("1");
   const [extraRooms, setExtraRooms] = useState("0");
   const [cleanerCount, setCleanerCount] = useState("1");
-  const [selectedCleanerId, setSelectedCleanerId] = useState("");
+  const [selectedCleanerOption, setSelectedCleanerOption] = useState("");
   const [equipmentOptionKey, setEquipmentOptionKey] = useState(equipmentOptions[0]?.key ?? "");
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
   const fieldsetsRef = useRef<Array<HTMLFieldSetElement | null>>([]);
@@ -52,8 +53,8 @@ export function AdminBookingWizardCard({
     [customerId, customers],
   );
   const selectedCleaner = useMemo(
-    () => cleaners.find((cleaner) => cleaner.id === selectedCleanerId),
-    [cleaners, selectedCleanerId],
+    () => cleaners.find((cleaner) => cleaner.id === selectedCleanerOption),
+    [cleaners, selectedCleanerOption],
   );
   const selectedEquipment = useMemo(
     () => equipmentOptions.find((option) => option.key === equipmentOptionKey),
@@ -276,12 +277,14 @@ export function AdminBookingWizardCard({
           <WizardGroup title="Step 5 · Assignment & summary" description="Choose cleaner preference, review details, then submit.">
             <div className="grid gap-3 lg:grid-cols-2">
               <WizardSelect
-                label="Preferred cleaner"
+                label="Assignment"
                 name="selectedCleanerId"
-                value={selectedCleanerId}
-                onChange={setSelectedCleanerId}
+                required
+                value={selectedCleanerOption}
+                onChange={setSelectedCleanerOption}
                 options={[
-                  { value: "", label: "Auto-assign" },
+                  { value: "", label: "Select assignment option" },
+                  { value: AUTO_ASSIGN_SENTINEL, label: "Auto-assign by availability" },
                   ...cleaners.filter((cleaner) => cleaner.active).map((cleaner) => ({
                     value: cleaner.id,
                     label: cleaner.display_name ?? cleaner.full_name ?? cleaner.phone ?? cleaner.id,
@@ -309,7 +312,14 @@ export function AdminBookingWizardCard({
                   label="Add-ons"
                   value={selectedAddonRows.length > 0 ? selectedAddonRows.map((addon) => addon.label).join(", ") : "None"}
                 />
-                <SummaryLine label="Cleaner assignment" value={selectedCleaner ? selectedCleaner.display_name ?? selectedCleaner.full_name ?? "Preferred cleaner" : "Auto-assign"} />
+                <SummaryLine
+                  label="Cleaner assignment"
+                  value={selectedCleanerOption === ""
+                    ? "Selection required"
+                    : selectedCleanerOption === AUTO_ASSIGN_SENTINEL
+                      ? "Auto-assign by availability"
+                      : selectedCleaner?.display_name ?? selectedCleaner?.full_name ?? "Preferred cleaner"}
+                />
                 <SummaryLine label="Cleaner count" value={cleanerCount} />
               </dl>
             </div>
