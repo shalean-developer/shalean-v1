@@ -277,7 +277,25 @@ export function BookingDetailView({ booking, reconciliationMessage }: BookingDet
               value={formatZar(getPaymentAmount(booking))}
               wide
             />
+            {booking.zoho_invoice_number ? (
+              <DetailRow
+                icon={<Receipt className="h-4 w-4" aria-hidden />}
+                label="Invoice number"
+                value={booking.zoho_invoice_number}
+              />
+            ) : null}
           </div>
+          {booking.zoho_invoice_id ? (
+            <a
+              className="mt-4 inline-flex items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
+              href={`/api/invoices/${booking.id}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <Receipt className="h-4 w-4" aria-hidden />
+              Download invoice (PDF)
+            </a>
+          ) : null}
         </Card>
 
         <div className="space-y-5">

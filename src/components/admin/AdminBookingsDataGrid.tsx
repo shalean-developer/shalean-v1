@@ -312,6 +312,17 @@ function ZohoCell({ booking }: { booking: AdminBookingListItem }) {
           </span>
         )
       ) : null}
+      {booking.zoho_invoice_id ? (
+        <a
+          href={`/api/invoices/${booking.id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:underline"
+        >
+          <ExternalLink className="h-3 w-3" />
+          Download PDF
+        </a>
+      ) : null}
       {status === "failed" && booking.zoho_sync_error ? (
         <span className="max-w-[220px] truncate text-xs text-rose-600" title={booking.zoho_sync_error}>
           {booking.zoho_sync_error}
