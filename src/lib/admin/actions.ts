@@ -18,6 +18,7 @@ import {
   weekdayFromDate,
 } from "@/lib/admin/utils";
 import { upsertCustomerIdentity } from "@/lib/customers/identity";
+import { notifyCustomerRegistered } from "@/lib/notifications/triggers";
 import { createRegularCleaningBooking, PreferredCleanerUnavailableError } from "@/lib/regular-cleaning/repository";
 import type { RegularCleaningBookingInput } from "@/lib/regular-cleaning/types";
 import { REGULAR_CLEANING_SLUG } from "@/lib/regular-cleaning/types";
@@ -263,6 +264,7 @@ export async function createCustomerAction(formData: FormData) {
     : null;
 
   await upsertCustomerIdentity(supabase, { authUserId, fullName, email, phone });
+  await notifyCustomerRegistered(supabase, { fullName, email, phone });
   revalidateAdmin();
 }
 

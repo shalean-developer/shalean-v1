@@ -3,6 +3,7 @@ import { verifyPaystackTransaction } from "@/lib/payments/paystack";
 import { dispatchRegularCleaningOffers } from "@/lib/regular-cleaning/dispatch";
 import { syncBookingsToZohoBooksSafe } from "@/lib/zoho/books";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { notifyPaymentFailed, notifyPaymentReceived, type CustomerLike } from "@/lib/notifications/triggers";
 import type { Database, Json } from "@/lib/supabase/database.types";
 
 type Supabase = SupabaseClient<Database>;
@@ -105,6 +106,16 @@ export async function reconcilePaystackPayment(input: PaymentReconciliationInput
   if (!decision.reconciled) {
     await markPaymentFailedIfFinal(supabase, payment, verification);
 
+    if (["failed", "abandoned"].includes(verification.providerStatus)) {
+      const customer = await loadCustomerForBooking(supabase, booking.customer_id);
+      await notifyPaymentFailed(supabase, {
+        booking,
+        customer: customer ?? undefined,
+        amountCents: Number(payment.amount_cents),
+        reason: `Paystack status: ${verification.providerStatus}`,
+      });
+    }
+
     return {
       bookingId: booking.id,
       paymentId: payment.id,
@@ -145,6 +156,15 @@ export async function reconcilePaystackPayment(input: PaymentReconciliationInput
 
   // Accounting sync is best-effort and must never fail payment reconciliation.
   await syncBookingsToZohoBooksSafe(supabase, dispatchedBookingIds);
+
+  // Best-effort: notify the customer + accounts team that payment succeeded.
+  const paidCustomer = await loadCustomerForBooking(supabase, booking.customer_id);
+  await notifyPaymentReceived(supabase, {
+    booking,
+    customer: paidCustomer ?? {},
+    amountCents: targetAmountCents,
+    paymentReference: reference,
+  });
 
   return {
     bookingId: booking.id,
@@ -191,6 +211,20 @@ async function findBookingForPayment(supabase: Supabase, paymentBookingId: strin
   if (result.error) throw result.error;
 
   return result.data;
+}
+
+async function loadCustomerForBooking(supabase: Supabase, customerId: string | null): Promise<CustomerLike | null> {
+  if (!customerId) return null;
+  const result = await supabase
+    .from("customers")
+    .select("full_name, email, phone")
+    .eq("id", customerId)
+    .maybeSingle();
+  if (result.error) {
+    console.error("NOTIFICATION_CUSTOMER_LOOKUP_FAILED", { customerId, message: result.error.message });
+    return null;
+  }
+  return result.data ?? null;
 }
 
 async function findRecurringSeries(supabase: Supabase, seriesId: string) {

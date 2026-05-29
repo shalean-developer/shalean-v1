@@ -4,6 +4,7 @@ import { bookingDraftToRegularCleaningInput } from "@/lib/regular-cleaning/adapt
 import { createRegularCleaningBooking, PreferredCleanerUnavailableError } from "@/lib/regular-cleaning/repository";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { initializePaystackTransaction } from "@/lib/payments/paystack";
+import { notifyBookingCreated } from "@/lib/notifications/triggers";
 import type { Database, Json } from "@/lib/supabase/database.types";
 
 export const runtime = "nodejs";
@@ -83,6 +84,7 @@ export async function POST(request: Request) {
     }
 
     let booking: CreatedBooking;
+    let isNewlyCreatedBooking = false;
     const existingBooking = await findExistingCheckoutBooking(supabase, checkoutId, customerId);
 
     if (existingBooking) {
@@ -107,6 +109,7 @@ export async function POST(request: Request) {
           bookingDraftToRegularCleaningInput(parsed.data),
           customerId,
         );
+        isNewlyCreatedBooking = true;
       } catch (error) {
         if (error instanceof PreferredCleanerUnavailableError) {
           return Response.json(
@@ -172,6 +175,26 @@ export async function POST(request: Request) {
 
     if (paymentResult.error) {
       throw withCheckoutStage(paymentResult.error, "payment_insert");
+    }
+
+    if (isNewlyCreatedBooking) {
+      // Best-effort: enqueue booking-created notifications. Never blocks checkout.
+      await notifyBookingCreated(supabase, {
+        booking: {
+          id: booking.bookingId,
+          service_slug: parsed.data.serviceSlug,
+          booking_date: parsed.data.date,
+          booking_time: parsed.data.timeWindow,
+          suburb: parsed.data.suburb,
+          address: parsed.data.address,
+          final_total_cents: booking.seriesTotalCents,
+        },
+        customer: {
+          full_name: parsed.data.customer.name,
+          email: parsed.data.customer.email,
+          phone: parsed.data.customer.phone,
+        },
+      });
     }
 
     return Response.json({

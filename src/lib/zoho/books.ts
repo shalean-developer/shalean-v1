@@ -12,6 +12,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
+import { notifyInvoiceCreated } from "@/lib/notifications/triggers";
 import { slugToTitle } from "@/lib/utils";
 import {
   getMissingZohoConfigKeys,
@@ -374,6 +375,16 @@ export async function syncBookingToZohoBooks(
       zoho_sync_error: null,
       zoho_sync_attempts: attempts,
       zoho_synced_at: new Date().toISOString(),
+    });
+
+    // Best-effort: notify the customer + accounts team that the invoice exists.
+    await notifyInvoiceCreated(supabase, {
+      customerEmail: snapshot.customerEmail,
+      customerName: snapshot.customerName,
+      invoiceNumber: invoice.invoiceNumber ?? snapshot.bookingReference,
+      serviceName: snapshot.serviceName,
+      amountCents: snapshot.finalTotalCents,
+      invoiceUrl,
     });
 
     return {
