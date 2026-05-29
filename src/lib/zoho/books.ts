@@ -673,6 +673,7 @@ export async function syncBookingToZohoBooks(
     if (invoiceWasCreated) {
       const invoicePdfBase64 = await fetchZohoInvoicePdfBase64(invoiceId, config, token);
       await notifyInvoiceCreated(supabase, {
+        bookingId,
         customerEmail: snapshot.customerEmail,
         customerName: snapshot.customerName,
         invoiceNumber: invoiceNumber ?? snapshot.bookingReference,

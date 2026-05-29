@@ -6,7 +6,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
-import { siteConfig } from "@/lib/config/site";
+import { appUrl, siteConfig } from "@/lib/config/site";
 import { slugToTitle } from "@/lib/utils";
 import { getEmailAddresses } from "@/lib/email/client";
 import { enqueueNotification } from "./outbox";
@@ -44,6 +44,15 @@ function manageUrl(): string {
 
 function adminBookingsUrl(): string {
   return `${siteConfig.url.replace(/\/$/, "")}/admin/bookings`;
+}
+
+/**
+ * Customer-facing link to a specific booking on the Shalean dashboard, where the
+ * customer can view their invoice. Customers must never be sent the raw Zoho
+ * Books app URL (that is a staff-only back-office link).
+ */
+function customerBookingUrl(bookingId: string): string {
+  return `${appUrl()}/dashboard?booking=${bookingId}`;
 }
 
 async function safe(label: string, fn: () => Promise<unknown>): Promise<void> {
@@ -224,11 +233,17 @@ export async function notifyBookingRescheduled(
 export async function notifyInvoiceCreated(
   supabase: Supabase,
   args: {
+    /**
+     * Booking the invoice belongs to. Used to build the customer's "View invoice"
+     * link into the Shalean dashboard (never the Zoho Books app URL).
+     */
+    bookingId: string;
     customerEmail?: string | null;
     customerName: string;
     invoiceNumber: string;
     serviceName: string;
     amountCents: number;
+    /** Zoho Books app URL — staff-only. Used for the admin copy, never the customer. */
     invoiceUrl?: string | null;
     dueDate?: string | null;
     /** Base64-encoded invoice PDF, attached to the email when present. */
@@ -265,7 +280,8 @@ export async function notifyInvoiceCreated(
           invoiceNumber: args.invoiceNumber,
           serviceName: args.serviceName,
           amountCents: args.amountCents,
-          invoiceUrl: args.invoiceUrl ?? null,
+          // Customer link points to the Shalean dashboard, NOT the Zoho app URL.
+          invoiceUrl: customerBookingUrl(args.bookingId),
           dueDate: args.dueDate ?? null,
         },
       });
