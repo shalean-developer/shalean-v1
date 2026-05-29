@@ -66,9 +66,15 @@ export function BookingWizard() {
     () => serverQuote ? toBookingQuote(serverQuote) : createPendingBookingQuote(draft),
     [draft, serverQuote],
   );
+  const [focusLoginSignal, setFocusLoginSignal] = useState(0);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
   const stepValidationErrors = validateStep(step, draft);
   const quoteBlocked = draft.serviceSlug === "regular-cleaning" && (isQuoteLoading || Boolean(quoteError) || !serverQuote);
-  const canContinue = stepValidationErrors.length === 0 && !isCheckingOut && (step < 3 || !quoteBlocked) && (step !== 6 || (isCustomerAuthenticated && isCustomerProfileReady));
+  const isCheckoutStep = step === steps.length - 1;
+  // Base readiness for moving forward through the wizard (ignores checkout auth).
+  const canAdvanceStep = stepValidationErrors.length === 0 && !isCheckingOut && (step < 3 || !quoteBlocked);
+  // Final payment can only run for an authenticated customer with a complete profile.
+  const canConfirmCheckout = canAdvanceStep && isCustomerAuthenticated && isCustomerProfileReady;
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -283,6 +289,11 @@ export function BookingWizard() {
     }
   }
 
+  function focusLoginForm() {
+    setStep(6);
+    setFocusLoginSignal((value) => value + 1);
+  }
+
   async function startCheckout() {
     const validationErrors = validateStep(steps.length - 1, draft);
     setErrors(validationErrors);
@@ -297,9 +308,11 @@ export function BookingWizard() {
       return;
     }
 
+    // Never reach Paystack without an authenticated, complete customer. Send the
+    // user to the in-step login/sign-up form instead of initializing payment.
     if (!isCustomerAuthenticated || !isCustomerProfileReady) {
       setErrors([]);
-      setStep(6);
+      focusLoginForm();
       return;
     }
 
@@ -331,10 +344,15 @@ export function BookingWizard() {
 
       if (!response.ok || !payload.authorizationUrl) {
         if (payload.code === "CUSTOMER_AUTH_REQUIRED") {
+          // The server is the source of truth for auth. Drop back to the login
+          // form and surface the message there (not in the top error banner) so
+          // the signed-in confirmation panel can never show at the same time.
           setIsCustomerAuthenticated(false);
           setIsCustomerProfileReady(false);
-          setStep(6);
-          throw new Error("Log in or sign up before checkout.");
+          setErrors([]);
+          setAuthNotice("Please log in or create an account to continue to payment.");
+          focusLoginForm();
+          return;
         }
         throw new Error(payload.error ?? "Unable to initialize Paystack checkout.");
       }
@@ -346,6 +364,24 @@ export function BookingWizard() {
       setIsCheckingOut(false);
     }
   }
+
+  const checkoutAction = (() => {
+    if (!isCheckoutStep) {
+      return { label: "Continue", onClick: nextStep, disabled: !canAdvanceStep, showChevron: true };
+    }
+
+    if (isCheckingOut) {
+      // Loading state while Paystack initializes; disabled prevents double clicks.
+      return { label: "Redirecting to secure payment…", onClick: () => {}, disabled: true, showChevron: false };
+    }
+
+    if (!isCustomerAuthenticated) {
+      // Logged-out: button focuses the in-step login/sign-up form, never Paystack.
+      return { label: "Log in to continue", onClick: focusLoginForm, disabled: isAuthChecking, showChevron: false };
+    }
+
+    return { label: "Confirm checkout", onClick: startCheckout, disabled: !canConfirmCheckout, showChevron: true };
+  })();
 
   return (
     <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -396,7 +432,12 @@ export function BookingWizard() {
             isCustomerAuthenticated,
             isCustomerProfileReady,
             isAuthChecking,
-            onAuthChange: setIsCustomerAuthenticated,
+            authNotice,
+            focusLoginSignal,
+            onAuthChange: (authenticated: boolean) => {
+              setIsCustomerAuthenticated(authenticated);
+              if (authenticated) setAuthNotice(null);
+            },
             onProfileReadyChange: setIsCustomerProfileReady,
           })}
         </div>
@@ -422,11 +463,11 @@ export function BookingWizard() {
             </Button>
             <Button
               className="w-full sm:w-auto"
-              onClick={step === steps.length - 1 ? startCheckout : nextStep}
-              disabled={!canContinue}
+              onClick={checkoutAction.onClick}
+              disabled={checkoutAction.disabled}
             >
-              {step === steps.length - 1 ? (isCheckingOut ? "Opening Paystack" : "Confirm checkout") : "Continue"}
-              <ChevronRight className="h-4 w-4" />
+              {checkoutAction.label}
+              {checkoutAction.showChevron ? <ChevronRight className="h-4 w-4" /> : null}
             </Button>
           </div>
         </div>
@@ -609,6 +650,8 @@ function renderStep({
   isCustomerAuthenticated,
   isCustomerProfileReady,
   isAuthChecking,
+  authNotice,
+  focusLoginSignal,
   onAuthChange,
   onProfileReadyChange,
 }: {
@@ -628,6 +671,8 @@ function renderStep({
   isCustomerAuthenticated: boolean;
   isCustomerProfileReady: boolean;
   isAuthChecking: boolean;
+  authNotice: string | null;
+  focusLoginSignal: number;
   onAuthChange: (authenticated: boolean) => void;
   onProfileReadyChange: (ready: boolean) => void;
 }) {
@@ -877,6 +922,8 @@ function renderStep({
           isProfileReady={isCustomerProfileReady}
           quoteError={quoteError}
           quoteResponse={quoteResponse}
+          authNotice={authNotice}
+          focusLoginSignal={focusLoginSignal}
           onAuthChange={onAuthChange}
           onProfileReadyChange={onProfileReadyChange}
         />
@@ -965,6 +1012,8 @@ function CheckoutStep({
   isProfileReady,
   quoteError,
   quoteResponse,
+  authNotice,
+  focusLoginSignal,
   onAuthChange,
   onProfileReadyChange,
 }: {
@@ -974,9 +1023,14 @@ function CheckoutStep({
   isProfileReady: boolean;
   quoteError: string | null;
   quoteResponse: RegularCleaningQuoteResponse | null;
+  authNotice: string | null;
+  focusLoginSignal: number;
   onAuthChange: (authenticated: boolean) => void;
   onProfileReadyChange: (ready: boolean) => void;
 }) {
+  // Single source of truth for which checkout sub-view is shown. The signed-in
+  // confirmation panel and the logged-out login form are mutually exclusive, so
+  // the "log in" warning can never appear alongside signed-in customer details.
   if (isChecking) {
     return (
       <div>
@@ -1004,11 +1058,12 @@ function CheckoutStep({
   return (
     <div>
       <StepTitle icon={<CreditCard />} title="Log in or sign up before checkout" text="Your booking details are saved while you log in or create an account." />
-      <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">
-        Log in or sign up before checkout.
+      <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+        {authNotice ?? "Please log in or create an account to continue to payment."}
       </div>
       <SignInOrSignUp
         draft={draft}
+        focusSignal={focusLoginSignal}
         onAuthChange={onAuthChange}
         onProfileReadyChange={onProfileReadyChange}
       />
@@ -1173,10 +1228,12 @@ function friendlyAuthError(error: { message?: string } | null, mode: "login" | "
 
 function SignInOrSignUp({
   draft,
+  focusSignal = 0,
   onAuthChange,
   onProfileReadyChange,
 }: {
   draft: BookingDraft;
+  focusSignal?: number;
   onAuthChange: (authenticated: boolean) => void;
   onProfileReadyChange: (ready: boolean) => void;
 }) {
@@ -1187,6 +1244,18 @@ function SignInOrSignUp({
   const [phone, setPhone] = useState(draft.customer.phone);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement | null>(null);
+
+  // When the footer "Log in to continue" button is pressed, bring the form into
+  // view and focus the first input so the customer can act immediately.
+  useEffect(() => {
+    if (focusSignal <= 0) return;
+    const form = formRef.current;
+    if (!form) return;
+    form.scrollIntoView({ behavior: "smooth", block: "center" });
+    const firstInput = form.querySelector<HTMLInputElement>("input");
+    firstInput?.focus();
+  }, [focusSignal]);
   const candidateDraft = { ...draft, customer: { name: fullName, email, phone } };
   const identityComplete = isCustomerIdentityComplete(candidateDraft);
   const canSubmit = mode === "login"
@@ -1281,7 +1350,7 @@ function SignInOrSignUp({
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
-      <form onSubmit={submitAuth} className="rounded-lg border border-slate-200 bg-white p-4">
+      <form ref={formRef} onSubmit={submitAuth} className="rounded-lg border border-slate-200 bg-white p-4">
         <div className="grid gap-3 md:grid-cols-2">
           {mode === "signup" ? (
             <>
