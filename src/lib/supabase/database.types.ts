@@ -581,6 +581,74 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["payments"]["Insert"]>;
         Relationships: [];
       };
+      notification_outbox: {
+        Row: {
+          id: string;
+          channel: string;
+          recipient: string;
+          payload: Json;
+          status: "pending" | "processing" | "sent" | "failed";
+          attempts: number;
+          next_retry_at: string | null;
+          last_error: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          channel: string;
+          recipient: string;
+          payload?: Json;
+          status?: "pending" | "processing" | "sent" | "failed";
+          attempts?: number;
+          next_retry_at?: string | null;
+          last_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["notification_outbox"]["Insert"]>;
+        Relationships: [];
+      };
+      notification_worker_runs: {
+        Row: {
+          id: string;
+          started_at: string | null;
+          completed_at: string;
+          ok: boolean;
+          delivery_enabled: boolean;
+          email_provider: "dry_run" | "resend" | null;
+          trigger_source: "cron" | "manual";
+          reclaimed: number;
+          scanned: number;
+          sent: number;
+          skipped: number;
+          failed: number;
+          dry_run: number;
+          error_count: number;
+          errors: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          started_at?: string | null;
+          completed_at?: string;
+          ok: boolean;
+          delivery_enabled: boolean;
+          email_provider?: "dry_run" | "resend" | null;
+          trigger_source?: "cron" | "manual";
+          reclaimed?: number;
+          scanned?: number;
+          sent?: number;
+          skipped?: number;
+          failed?: number;
+          dry_run?: number;
+          error_count?: number;
+          errors?: Json;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["notification_worker_runs"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
