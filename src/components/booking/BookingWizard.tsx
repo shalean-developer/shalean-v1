@@ -298,7 +298,7 @@ export function BookingWizard() {
     }
 
     if (!isCustomerAuthenticated || !isCustomerProfileReady) {
-      setErrors(["Log in or sign up and complete your customer details before checkout. Your booking draft is still saved."]);
+      setErrors([]);
       setStep(6);
       return;
     }
@@ -330,7 +330,13 @@ export function BookingWizard() {
       }
 
       if (!response.ok || !payload.authorizationUrl) {
-        throw new Error(payload.code === "CUSTOMER_AUTH_REQUIRED" ? "Log in or sign up before checkout." : payload.error ?? "Unable to initialize Paystack checkout.");
+        if (payload.code === "CUSTOMER_AUTH_REQUIRED") {
+          setIsCustomerAuthenticated(false);
+          setIsCustomerProfileReady(false);
+          setStep(6);
+          throw new Error("Log in or sign up before checkout.");
+        }
+        throw new Error(payload.error ?? "Unable to initialize Paystack checkout.");
       }
 
       window.location.assign(payload.authorizationUrl);
@@ -997,7 +1003,10 @@ function CheckoutStep({
 
   return (
     <div>
-      <StepTitle icon={<CreditCard />} title="Sign in or create an account" text="Sign in or create an account to continue. Your booking details are saved." />
+      <StepTitle icon={<CreditCard />} title="Log in or sign up before checkout" text="Your booking details are saved while you log in or create an account." />
+      <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">
+        Log in or sign up before checkout.
+      </div>
       <SignInOrSignUp
         draft={draft}
         onAuthChange={onAuthChange}
