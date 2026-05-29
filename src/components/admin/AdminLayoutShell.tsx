@@ -108,7 +108,7 @@ export function AdminLayoutShell({
           </div>
         </div>
       </header>
-      <div className="flex w-full flex-col gap-4 px-3 pb-8 pt-4 sm:px-4 lg:flex-row lg:items-start lg:gap-6 lg:px-6">
+      <div className="flex w-full flex-col gap-4 px-3 pb-8 pt-4 sm:px-4 lg:flex-row lg:items-start lg:gap-5 lg:px-6">
         <AdminRouteNav stats={stats} />
         <div className="min-w-0 flex-1 space-y-4">
           {children}

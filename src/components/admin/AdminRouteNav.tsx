@@ -84,7 +84,7 @@ export function AdminRouteNav({ stats }: { stats: AdminStats }) {
           Menu
         </button>
       </div>
-      <aside className="hidden w-72 shrink-0 lg:block lg:sticky lg:top-20 lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto lg:pr-1">
+      <aside className="hidden w-60 shrink-0 lg:block lg:sticky lg:top-20 lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto lg:pr-1">
         <SidebarBody pathname={pathname} stats={stats} />
       </aside>
       {drawerOpen ? (
