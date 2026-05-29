@@ -62,18 +62,25 @@ export function CleanerManagement({ cleaners }: { cleaners: CleanerRow[] }) {
                 </Badge>
               </div>
 
-              <div className="mt-3 grid gap-2 md:grid-cols-2">
+              <div className="mt-3 grid gap-2">
                 <details className="rounded-md border border-slate-200 bg-white p-3">
                   <summary className="cursor-pointer font-bold text-slate-950">Edit cleaner</summary>
                   <form action={updateCleanerAction} className="mt-3 grid gap-3">
                     <input type="hidden" name="cleanerId" value={cleaner.id} />
-                    <div className="grid gap-3 md:grid-cols-3">
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                       <AdminInput label="Full name" name="fullName" defaultValue={cleaner.full_name ?? ""} required />
                       <AdminInput label="Display name" name="displayName" defaultValue={cleaner.display_name ?? ""} required />
-                      <CleanerPhoneField defaultValue={phone} />
+                      <div className="sm:col-span-2 lg:col-span-1">
+                        <CleanerPhoneField defaultValue={phone} />
+                      </div>
                     </div>
-                    <div className="grid gap-3 md:grid-cols-[1fr_150px_150px_150px]">
-                      <AdminInput label="Service areas" name="suburbs" defaultValue={cleaner.suburbs.join(", ")} />
+                    <AdminInput
+                      label="Service areas"
+                      name="suburbs"
+                      defaultValue={cleaner.suburbs.join(", ")}
+                      placeholder="Sea Point, Claremont"
+                    />
+                    <div className="grid gap-3 sm:grid-cols-3">
                       <AdminSelect label="Active" name="active" defaultValue={cleaner.active ? "true" : "false"} options={booleanOptions} />
                       <AdminSelect label="Available" name="available" defaultValue={cleaner.available ? "true" : "false"} options={booleanOptions} />
                       <AdminSelect label="Equipment" name="equipmentEligible" defaultValue={cleaner.equipment_eligible ? "true" : "false"} options={booleanOptions} />
@@ -86,7 +93,7 @@ export function CleanerManagement({ cleaners }: { cleaners: CleanerRow[] }) {
                   <summary className="cursor-pointer font-bold text-slate-950">
                     {cleaner.password_set_at ? "Reset password" : "Set password"}
                   </summary>
-                  <form action={resetCleanerPasswordAction} className="mt-3 grid gap-3">
+                  <form action={resetCleanerPasswordAction} className="mt-3 grid max-w-md gap-3">
                     <input type="hidden" name="cleanerId" value={cleaner.id} />
                     <AdminInput label="New password" name="password" type="password" minLength={6} required />
                     <SubmitButton>{cleaner.password_set_at ? "Reset password" : "Set password"}</SubmitButton>
