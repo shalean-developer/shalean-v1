@@ -527,9 +527,8 @@ export async function recordManualBookingPayment(
         .eq("id", booking.id);
 
       await dispatchCleanersForPaidBooking(supabase, {
-        ...booking,
-        payment_status: "paid",
-        booking_status: update.booking_status ?? booking.booking_status,
+        id: booking.id,
+        recurring_series_id: booking.recurring_series_id,
       });
 
       await logAdminBookingAssistAudit(supabase, {
