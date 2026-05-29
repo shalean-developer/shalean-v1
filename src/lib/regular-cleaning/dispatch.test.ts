@@ -3,6 +3,7 @@ import type { Database } from "@/lib/supabase/database.types";
 import {
   blocksDispatchForCleanerOfferStatus,
   ensureCustomerSelectedCleanerAccepted,
+  isBookingEligibleForCleanerDispatch,
   isCleanerEligibleForBooking,
 } from "./dispatch";
 
@@ -78,6 +79,35 @@ describe("isCleanerEligibleForBooking", () => {
     });
 
     expect(eligible).toBe(false);
+  });
+});
+
+describe("isBookingEligibleForCleanerDispatch", () => {
+  it("allows paid confirmed bookings", () => {
+    expect(
+      isBookingEligibleForCleanerDispatch({
+        payment_status: "paid",
+        booking_status: "confirmed",
+      }),
+    ).toBe(true);
+  });
+
+  it("allows unpaid confirmed bookings when admin-assisted dispatch is enabled", () => {
+    expect(
+      isBookingEligibleForCleanerDispatch(
+        { payment_status: "pending", booking_status: "confirmed" },
+        { allowUnpaid: true },
+      ),
+    ).toBe(true);
+  });
+
+  it("blocks unpaid bookings for the default paid-only dispatch path", () => {
+    expect(
+      isBookingEligibleForCleanerDispatch({
+        payment_status: "pending",
+        booking_status: "confirmed",
+      }),
+    ).toBe(false);
   });
 });
 

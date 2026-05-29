@@ -19,6 +19,7 @@ import {
 } from "@/lib/admin/utils";
 import { upsertCustomerIdentity } from "@/lib/customers/identity";
 import { notifyCustomerRegistered } from "@/lib/notifications/triggers";
+import { dispatchCleanersForAdminAssistedBooking } from "@/lib/regular-cleaning/dispatch";
 import { createRegularCleaningBooking, PreferredCleanerUnavailableError } from "@/lib/regular-cleaning/repository";
 import type { RegularCleaningBookingInput } from "@/lib/regular-cleaning/types";
 import { REGULAR_CLEANING_SLUG } from "@/lib/regular-cleaning/types";
@@ -442,6 +443,7 @@ export async function createAdminBookingAction(formData: FormData) {
             equipmentOptionKey: requiredString(formData, "equipmentOptionKey") as RegularCleaningBookingInput["equipmentOptionKey"],
             cleanerCount: clampInt(intValue(formData, "cleanerCount"), 1, 4),
             selectedCleanerId,
+            adminAssisted: true,
             accessNotes: optionalString(formData, "accessNotes"),
             customer: {
               fullName: customerResult.data.full_name,
@@ -487,6 +489,7 @@ export async function createAdminBookingAction(formData: FormData) {
 
           if (bookingIds.length > 0) {
             const idempotencyOutcome = await loadBookingIdsForIdempotencyKey(supabase, idempotencyKey);
+            const primaryBookingId = idempotencyOutcome?.primaryBookingId ?? bookingIds[0];
             if (idempotencyOutcome) {
               try {
                 await persistAdminBookingIdempotencyOutcome(supabase, {
@@ -524,6 +527,29 @@ export async function createAdminBookingAction(formData: FormData) {
                   error: auditError,
                 });
               }
+            }
+
+            // Assign the selected cleaner (or auto-offer) before payment is collected.
+            try {
+              await dispatchCleanersForAdminAssistedBooking(supabase, bookingIds);
+              await logAdminBookingAssistAudit(supabase, {
+                adminProfileId: profile.id,
+                customerId,
+                bookingId: primaryBookingId,
+                action: ADMIN_BOOKING_ASSIST_ACTIONS.cleanerDispatched,
+                idempotencyKey,
+                payload: {
+                  booking_ids: bookingIds,
+                  trigger: "admin_booking_created",
+                  selected_cleaner_id: selectedCleanerId,
+                },
+              });
+            } catch (dispatchError) {
+              console.error("ADMIN_BOOKING_CLEANER_DISPATCH_FAILED", {
+                bookingIds,
+                idempotencyKey,
+                error: dispatchError,
+              });
             }
 
             // Issue an unpaid Zoho invoice + Paystack payment link for the new booking.

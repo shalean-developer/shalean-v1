@@ -26,7 +26,9 @@ export default async function AdminBookingsPage({ searchParams }: PageProps) {
     loadAdminManagementData(),
     loadAdminBookings(100),
   ]);
-  const pendingAssignment = bookings.filter((booking) => booking.booking_status === "confirmed" && booking.payment_status === "paid" && !booking.selected_cleaner_id).length;
+  const pendingAssignment = bookings.filter(
+    (booking) => booking.booking_status === "confirmed" && !booking.selected_cleaner_id,
+  ).length;
   const paidCount = bookings.filter((booking) => (booking.payment?.status ?? booking.payment_status) === "paid").length;
   const revenueCents = bookings.reduce((total, booking) => total + booking.final_total_cents, 0);
 

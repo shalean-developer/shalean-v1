@@ -132,6 +132,7 @@ export async function createRegularCleaningBooking(
       occurrenceCount: quoteResponse.occurrences.length,
       perOccurrenceTotalCents: quote.finalTotalCents,
       seriesTotalCents: quoteResponse.seriesTotalCents,
+      adminAssisted: input.adminAssisted,
     },
   ));
   logRegularCleaningDebug("BOOKING_INSERT_PAYLOAD", {
@@ -287,6 +288,7 @@ export function buildRegularCleaningBookingInsert(
     occurrenceCount: number;
     perOccurrenceTotalCents: number;
     seriesTotalCents: number;
+    adminAssisted?: boolean;
   },
 ) {
   return {
@@ -323,7 +325,7 @@ export function buildRegularCleaningBookingInsert(
     extra_cleaners_total_cents: quote.extraCleanersTotalCents,
     final_total_cents: quote.finalTotalCents,
     payment_status: "pending",
-    booking_status: "payment_pending",
+    booking_status: recurring?.adminAssisted ? "confirmed" : "payment_pending",
     pricing_snapshot: quote,
   };
 }

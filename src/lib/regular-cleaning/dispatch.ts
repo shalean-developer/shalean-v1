@@ -36,6 +36,21 @@ async function loadBookingIdsForRecurringSeries(supabase: Supabase, seriesId: st
  * Idempotent: dispatchRegularCleaningOffers skips bookings that are not paid
  * and avoids duplicate offers when offers already exist.
  */
+export function isBookingEligibleForCleanerDispatch(
+  booking: Pick<BookingRow, "payment_status" | "booking_status">,
+  options?: { allowUnpaid?: boolean },
+) {
+  if (!["confirmed", "assigned"].includes(booking.booking_status)) {
+    return false;
+  }
+
+  if (booking.payment_status === "paid") {
+    return true;
+  }
+
+  return Boolean(options?.allowUnpaid) && booking.payment_status === "pending";
+}
+
 export async function dispatchCleanersForPaidBooking(
   supabase: Supabase,
   booking: Pick<BookingRow, "id" | "recurring_series_id">,
@@ -47,7 +62,22 @@ export async function dispatchCleanersForPaidBooking(
   await dispatchRegularCleaningOffers(supabase, bookingIds);
 }
 
-export async function dispatchRegularCleaningOffers(supabase: Supabase, bookingIds: string[]) {
+/**
+ * Assign cleaners for admin-created bookings before payment is collected.
+ * Idempotent with the paid-booking dispatch path used after Paystack/manual payment.
+ */
+export async function dispatchCleanersForAdminAssistedBooking(
+  supabase: Supabase,
+  bookingIds: string[],
+) {
+  await dispatchRegularCleaningOffers(supabase, bookingIds, { allowUnpaid: true });
+}
+
+export async function dispatchRegularCleaningOffers(
+  supabase: Supabase,
+  bookingIds: string[],
+  options?: { allowUnpaid?: boolean },
+) {
   if (bookingIds.length === 0) {
     return;
   }
@@ -60,8 +90,8 @@ export async function dispatchRegularCleaningOffers(supabase: Supabase, bookingI
 
   if (bookingsResult.error) throw bookingsResult.error;
 
-  const bookings = (bookingsResult.data ?? []).filter(
-    (booking) => booking.payment_status === "paid" && ["confirmed", "assigned"].includes(booking.booking_status),
+  const bookings = (bookingsResult.data ?? []).filter((booking) =>
+    isBookingEligibleForCleanerDispatch(booking, options),
   );
 
   if (bookings.length === 0) {

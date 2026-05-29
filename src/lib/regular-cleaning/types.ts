@@ -46,6 +46,8 @@ export type RegularCleaningBookingInput = {
   equipmentOptionKey: "without_equipment" | "with_equipment";
   cleanerCount: number;
   selectedCleanerId?: string | null;
+  /** Admin-assisted bookings are confirmed up front; payment is collected later. */
+  adminAssisted?: boolean;
   accessNotes?: string | null;
   customer: {
     fullName: string;
