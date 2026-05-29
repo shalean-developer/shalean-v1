@@ -296,6 +296,28 @@ describe("processNotificationOutbox", () => {
     expect(run.trigger_source).toBe("manual");
   });
 
+  it("forwards payload attachments to the sender", async () => {
+    const { store, client } = makeFakeSupabase();
+    seedRow(store, {
+      payload: {
+        type: "invoice_created",
+        data: { customerName: "T", invoiceNumber: "INV-1", serviceName: "Regular Cleaning", amountCents: 1000 },
+        attachments: [{ filename: "Invoice-INV-1.pdf", content: "YmFzZTY0", contentType: "application/pdf" }],
+      },
+    });
+    const captured: Array<{ attachments?: unknown }> = [];
+    const capturingSend = (input: { attachments?: unknown }) => {
+      captured.push(input);
+      return okResend();
+    };
+    const summary = await processNotificationOutbox(client, { send: capturingSend as never, deliveryEnabled: true, recordRun: false });
+    expect(summary.sent).toBe(1);
+    expect(captured).toHaveLength(1);
+    expect(captured[0].attachments).toEqual([
+      { filename: "Invoice-INV-1.pdf", content: "YmFzZTY0", contentType: "application/pdf" },
+    ]);
+  });
+
   it("never throws even if the sender throws", async () => {
     const { store, client } = makeFakeSupabase();
     seedRow(store);

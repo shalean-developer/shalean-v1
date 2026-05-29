@@ -83,6 +83,10 @@ describe("invoice emails", () => {
     expect(email.html).toContain("Deep Clean");
     expect(email.html).toContain(formatZar(120000));
     expect(email.html).toContain("https://books.zoho.com/app/999#/invoices/inv-1");
+    // Invoice number appears in the prominent callout and the intro mentions the attachment.
+    expect(email.html).toContain("Invoice number");
+    expect(email.html).toContain("attached");
+    expect(email.text).toContain("Invoice number: INV-000123");
   });
 
   it("admin invoice email mirrors the same invoice fields", () => {
