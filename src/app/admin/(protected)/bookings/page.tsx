@@ -78,6 +78,19 @@ export default async function AdminBookingsPage({ searchParams }: PageProps) {
             Admin booking created successfully.
           </div>
         ) : null}
+        {actionSuccess === "zoho-synced" ? (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900">
+            Zoho Books sync completed successfully.
+          </div>
+        ) : actionSuccess === "zoho-skipped" ? (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800">
+            Zoho Books sync was skipped (integration not configured or booking not paid).
+          </div>
+        ) : actionSuccess === "zoho-failed" ? (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-900">
+            Zoho Books sync failed. Review the error on the booking row and retry.
+          </div>
+        ) : null}
         {actionError === "catalog-config" ? (
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
             Regular Cleaning catalog configuration is incomplete. Ensure at least one active bedroom/bathroom pricing rule and at least one active equipment option are configured before creating admin bookings.

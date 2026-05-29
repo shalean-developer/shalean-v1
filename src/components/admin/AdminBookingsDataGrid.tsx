@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { ExternalLink, RefreshCw, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { retryZohoSyncAction } from "@/lib/admin/actions";
 import type { AdminBookingListItem, CleanerRow } from "@/lib/admin/data";
 import { formatZar, slugToTitle } from "@/lib/utils";
 
@@ -160,6 +161,7 @@ export function AdminBookingsDataGrid({
                 <th className="px-4 py-3 text-left font-semibold">Cleaner</th>
                 <th className="px-4 py-3 text-left font-semibold">Amount</th>
                 <th className="px-4 py-3 text-left font-semibold">Status</th>
+                <th className="px-4 py-3 text-left font-semibold">Zoho Books</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -186,11 +188,14 @@ export function AdminBookingsDataGrid({
                         <StatusPill value={paymentStatus} tone="payment" />
                       </div>
                     </td>
+                    <td className="px-4 py-3">
+                      <ZohoCell booking={booking} />
+                    </td>
                   </tr>
                 );
               }) : (
                 <tr>
-                  <td className="px-4 py-8 text-center text-sm text-slate-500" colSpan={6}>No bookings match these filters.</td>
+                  <td className="px-4 py-8 text-center text-sm text-slate-500" colSpan={7}>No bookings match these filters.</td>
                 </tr>
               )}
             </tbody>
@@ -219,6 +224,9 @@ export function AdminBookingsDataGrid({
               <div className="mt-3 flex flex-wrap gap-1.5">
                 <StatusPill value={booking.booking_status} tone="booking" />
                 <StatusPill value={paymentStatus} tone="payment" />
+              </div>
+              <div className="mt-3 border-t border-slate-100 pt-3">
+                <ZohoCell booking={booking} />
               </div>
             </article>
           );
@@ -279,6 +287,63 @@ function FilterSelect({
       </select>
     </label>
   );
+}
+
+function ZohoCell({ booking }: { booking: AdminBookingListItem }) {
+  const status = booking.zoho_sync_status ?? "pending";
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <ZohoStatusBadge status={status} />
+      {booking.zoho_invoice_id ? (
+        booking.zoho_invoice_url ? (
+          <a
+            href={booking.zoho_invoice_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:underline"
+          >
+            <ExternalLink className="h-3 w-3" />
+            {booking.zoho_invoice_number ?? booking.zoho_invoice_id}
+          </a>
+        ) : (
+          <span className="text-xs text-slate-600">
+            {booking.zoho_invoice_number ?? booking.zoho_invoice_id}
+          </span>
+        )
+      ) : null}
+      {status === "failed" && booking.zoho_sync_error ? (
+        <span className="max-w-[220px] truncate text-xs text-rose-600" title={booking.zoho_sync_error}>
+          {booking.zoho_sync_error}
+        </span>
+      ) : null}
+      {status !== "synced" ? (
+        <form action={retryZohoSyncAction}>
+          <input type="hidden" name="bookingId" value={booking.id} />
+          <button
+            type="submit"
+            className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            <RefreshCw className="h-3 w-3" />
+            Retry Zoho Sync
+          </button>
+        </form>
+      ) : null}
+    </div>
+  );
+}
+
+function ZohoStatusBadge({ status }: { status: string }) {
+  const tone =
+    status === "synced"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : status === "failed"
+        ? "border-rose-200 bg-rose-50 text-rose-700"
+        : status === "skipped"
+          ? "border-slate-200 bg-slate-50 text-slate-600"
+          : "border-amber-200 bg-amber-50 text-amber-700";
+
+  return <Badge className={tone}>{slugToTitle(status)}</Badge>;
 }
 
 function StatusPill({ value, tone }: { value: string; tone: "booking" | "payment" }) {

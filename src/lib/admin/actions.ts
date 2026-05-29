@@ -23,6 +23,7 @@ import type { RegularCleaningBookingInput } from "@/lib/regular-cleaning/types";
 import { REGULAR_CLEANING_SLUG } from "@/lib/regular-cleaning/types";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
+import { syncBookingToZohoBooks } from "@/lib/zoho/books";
 
 type SupabaseAdmin = ReturnType<typeof createSupabaseAdminClient>;
 type AdminRole = "customer" | "cleaner" | "admin";
@@ -380,6 +381,23 @@ export async function createAdminBookingAction(formData: FormData) {
 
   revalidateAdmin();
   redirect("/admin/bookings?success=booking-created");
+}
+
+export async function retryZohoSyncAction(formData: FormData) {
+  await requireAdmin();
+  const bookingId = requiredString(formData, "bookingId");
+
+  const result = await syncBookingToZohoBooks(bookingId, { force: true });
+
+  revalidatePath("/admin/bookings");
+  revalidatePath("/admin/payments");
+
+  const status = result.status === "synced"
+    ? "zoho-synced"
+    : result.status === "skipped"
+      ? "zoho-skipped"
+      : "zoho-failed";
+  redirect(`/admin/bookings?success=${status}`);
 }
 
 async function makeCleanerEligibleForAdminBooking(
