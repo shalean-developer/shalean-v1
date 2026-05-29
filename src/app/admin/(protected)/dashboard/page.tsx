@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { ADMIN_PAGE_DESCRIPTION_CLASS, ADMIN_PAGE_TITLE_CLASS } from "@/components/admin/AdminLayoutShell";
+import { ADMIN_PAGE_DESCRIPTION_CLASS, ADMIN_PAGE_TITLE_CLASS } from "@/components/admin/admin-page-styles";
 import { loadAdminDashboard, type DashboardBooking } from "@/lib/dashboard/data";
 import { formatZar, slugToTitle } from "@/lib/utils";
 

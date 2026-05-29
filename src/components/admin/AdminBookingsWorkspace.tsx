@@ -7,7 +7,7 @@ import { AdminBookingCreateDrawer } from "@/components/admin/AdminBookingCreateD
 import { AdminBookingDetailDrawer } from "@/components/admin/AdminBookingDetailDrawer";
 import { AdminBookingsDataGrid } from "@/components/admin/AdminBookingsDataGrid";
 import { AdminBookingsOperationsSummary } from "@/components/admin/AdminBookingsOperationsSummary";
-import { ADMIN_PAGE_DESCRIPTION_CLASS, ADMIN_PAGE_TITLE_CLASS } from "@/components/admin/AdminLayoutShell";
+import { ADMIN_PAGE_DESCRIPTION_CLASS, ADMIN_PAGE_TITLE_CLASS } from "@/components/admin/admin-page-styles";
 import { createAdminBookingAction } from "@/lib/admin/actions";
 import type { BookingsOperationsMetrics } from "@/lib/admin/bookings-ui";
 import type {

@@ -1,10 +1,15 @@
 import type React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { redirect } from "next/navigation";
 import { Bell, ChevronDown, Search } from "lucide-react";
 import { AdminRouteNav } from "@/components/admin/AdminRouteNav";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  ADMIN_PAGE_DESCRIPTION_CLASS,
+  ADMIN_PAGE_TITLE_CLASS,
+} from "@/components/admin/admin-page-styles";
+import { signOutAdminAction } from "@/lib/admin/auth-actions";
+
+export { ADMIN_PAGE_DESCRIPTION_CLASS, ADMIN_PAGE_TITLE_CLASS } from "@/components/admin/admin-page-styles";
 
 type AdminStats = {
   openBookings: number;
@@ -118,9 +123,6 @@ export function AdminLayoutShell({
   );
 }
 
-export const ADMIN_PAGE_TITLE_CLASS = "text-3xl font-black tracking-tight text-slate-950 sm:text-[2.25rem]";
-export const ADMIN_PAGE_DESCRIPTION_CLASS = "mt-2 max-w-3xl text-sm leading-6 text-slate-600";
-
 export function AdminPageHeading({ eyebrow, title, children }: { eyebrow: string; title: string; children?: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
@@ -129,12 +131,4 @@ export function AdminPageHeading({ eyebrow, title, children }: { eyebrow: string
       {children ? <p className={ADMIN_PAGE_DESCRIPTION_CLASS}>{children}</p> : null}
     </div>
   );
-}
-
-async function signOutAdminAction() {
-  "use server";
-
-  const supabase = await createSupabaseServerClient();
-  await supabase.auth.signOut();
-  redirect("/admin/login");
 }
