@@ -6,6 +6,12 @@ export type ZohoBookingLineItem = {
   priceCents: number;
 };
 
+export type ZohoBreakdownLine = {
+  label: string;
+  amountCents: number;
+  category?: string;
+};
+
 export type ZohoBookingSnapshot = {
   bookingId: string;
   bookingReference: string;
@@ -24,7 +30,36 @@ export type ZohoBookingSnapshot = {
   finalTotalCents: number;
   paymentStatus: string;
   currencyCode: string;
+  // Booking selections (so the invoice reflects everything the customer chose).
+  propertyType?: string | null;
+  bedrooms?: number | null;
+  bathrooms?: number | null;
+  extraRooms?: number | null;
+  frequency?: string | null;
+  occurrenceCount?: number | null;
+  // Itemized pricing breakdown (base, per-bedroom/bathroom, add-ons, equipment,
+  // extra cleaners, minimum). When present it is used verbatim for line items.
+  breakdownLines?: ZohoBreakdownLine[];
+  // The amount actually charged for this invoice/occurrence (after any recurring
+  // frequency discount). Defaults to finalTotalCents when not set.
+  invoiceTotalCents?: number;
 };
+
+export function humanizeFrequency(frequency?: string | null): string {
+  switch ((frequency ?? "").toLowerCase()) {
+    case "once":
+    case "":
+      return "Once-off";
+    case "weekly":
+      return "Weekly";
+    case "fortnightly":
+      return "Bi-weekly";
+    case "monthly":
+      return "Monthly";
+    default:
+      return frequency as string;
+  }
+}
 
 export type ZohoContactPayload = {
   contact_name: string;
@@ -106,6 +141,50 @@ export function buildZohoInvoicePayload(
 ): ZohoInvoicePayload {
   const scheduleDescription = `Scheduled ${snapshot.bookingDate} ${snapshot.bookingTime} • ${snapshot.address}, ${snapshot.suburb}`;
 
+  // Prefer the full itemized breakdown (base, per-bedroom/bathroom/extra-room,
+  // add-ons, equipment, extra cleaners, minimum) so every booking selection is
+  // recorded. Fall back to the coarse base/add-ons/equipment shape otherwise.
+  const lineItems: ZohoInvoiceLineItemPayload[] =
+    snapshot.breakdownLines && snapshot.breakdownLines.length > 0
+      ? snapshot.breakdownLines.map((line, index) => ({
+          name: line.label,
+          description: index === 0 ? scheduleDescription : categoryDescription(line.category),
+          rate: centsToMajor(line.amountCents),
+          quantity: 1,
+        }))
+      : buildFallbackLineItems(snapshot, scheduleDescription);
+
+  const lineTotalCents = lineItems.reduce(
+    (total, item) => total + Math.round(item.rate * 100) * item.quantity,
+    0,
+  );
+  // Charge the discounted amount when a recurring frequency discount applies.
+  const targetTotalCents = snapshot.invoiceTotalCents ?? snapshot.finalTotalCents;
+  const adjustmentCents = targetTotalCents - lineTotalCents;
+
+  const payload: ZohoInvoicePayload = {
+    customer_id: contactId,
+    reference_number: snapshot.bookingReference,
+    notes: buildInvoiceNotes(snapshot),
+    line_items: lineItems,
+  };
+
+  if (options?.invoiceDate) {
+    payload.date = options.invoiceDate;
+  }
+
+  if (adjustmentCents !== 0) {
+    payload.adjustment = centsToMajor(adjustmentCents);
+    payload.adjustment_description = resolveAdjustmentDescription(snapshot, adjustmentCents);
+  }
+
+  return payload;
+}
+
+function buildFallbackLineItems(
+  snapshot: ZohoBookingSnapshot,
+  scheduleDescription: string,
+): ZohoInvoiceLineItemPayload[] {
   const lineItems: ZohoInvoiceLineItemPayload[] = [
     {
       name: snapshot.serviceName,
@@ -142,30 +221,39 @@ export function buildZohoInvoicePayload(
     });
   }
 
-  const lineTotalCents = lineItems.reduce(
-    (total, item) => total + Math.round(item.rate * 100) * item.quantity,
-    0,
-  );
-  const adjustmentCents = snapshot.finalTotalCents - lineTotalCents;
+  return lineItems;
+}
 
-  const payload: ZohoInvoicePayload = {
-    customer_id: contactId,
-    reference_number: snapshot.bookingReference,
-    notes: buildInvoiceNotes(snapshot),
-    line_items: lineItems,
-  };
-
-  if (options?.invoiceDate) {
-    payload.date = options.invoiceDate;
+function categoryDescription(category?: string): string {
+  switch (category) {
+    case "rooms":
+      return "Room allocation";
+    case "addon":
+      return "Booking add-on";
+    case "equipment":
+      return "Cleaning equipment";
+    case "cleaners":
+      return "Extra cleaner allocation";
+    case "minimum":
+      return "Minimum booking adjustment";
+    default:
+      return "";
   }
+}
 
-  if (adjustmentCents !== 0) {
-    payload.adjustment = centsToMajor(adjustmentCents);
-    payload.adjustment_description =
-      adjustmentCents < 0 ? "Booking discount" : "Booking adjustment";
+function frequencyDiscountCents(snapshot: ZohoBookingSnapshot): number {
+  const target = snapshot.invoiceTotalCents ?? snapshot.finalTotalCents;
+  return Math.max(0, snapshot.finalTotalCents - target);
+}
+
+function resolveAdjustmentDescription(
+  snapshot: ZohoBookingSnapshot,
+  adjustmentCents: number,
+): string {
+  if (frequencyDiscountCents(snapshot) > 0) {
+    return `Frequency discount (${humanizeFrequency(snapshot.frequency)})`;
   }
-
-  return payload;
+  return adjustmentCents < 0 ? "Booking discount" : "Booking adjustment";
 }
 
 /**
@@ -206,12 +294,37 @@ function buildInvoiceNotes(snapshot: ZohoBookingSnapshot): string {
       ? snapshot.addOns.map((addOn) => addOn.label).join(", ")
       : "None";
 
-  return [
+  const lines: string[] = [
     `Booking reference: ${snapshot.bookingReference}`,
     `Service: ${snapshot.serviceName}`,
     `Date/time: ${snapshot.bookingDate} ${snapshot.bookingTime}`,
     `Address: ${snapshot.address}, ${snapshot.suburb}`,
-    `Add-ons: ${addOnSummary}`,
-    `Payment status: ${snapshot.paymentStatus}`,
-  ].join("\n");
+  ];
+
+  if (snapshot.propertyType) {
+    lines.push(`Property type: ${snapshot.propertyType}`);
+  }
+  if (typeof snapshot.bedrooms === "number") {
+    lines.push(`Bedrooms: ${snapshot.bedrooms}`);
+  }
+  if (typeof snapshot.bathrooms === "number") {
+    lines.push(`Bathrooms: ${snapshot.bathrooms}`);
+  }
+  if (typeof snapshot.extraRooms === "number" && snapshot.extraRooms > 0) {
+    lines.push(`Extra rooms: ${snapshot.extraRooms}`);
+  }
+
+  lines.push(`Add-ons: ${addOnSummary}`);
+
+  if (snapshot.frequency) {
+    lines.push(`Frequency: ${humanizeFrequency(snapshot.frequency)}`);
+  }
+  const discountCents = frequencyDiscountCents(snapshot);
+  if (discountCents > 0) {
+    lines.push(`Frequency discount: -${centsToMajor(discountCents).toFixed(2)}`);
+  }
+
+  lines.push(`Payment status: ${snapshot.paymentStatus}`);
+
+  return lines.join("\n");
 }

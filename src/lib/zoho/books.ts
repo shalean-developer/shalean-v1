@@ -29,6 +29,7 @@ import {
   centsToMajor,
   type ZohoBookingLineItem,
   type ZohoBookingSnapshot,
+  type ZohoBreakdownLine,
 } from "./mapping";
 
 type Supabase = SupabaseClient<Database>;
@@ -325,11 +326,11 @@ function bookingReferenceFor(bookingId: string): string {
  * returns null (never throws) so a PDF fetch failure can't break invoice sync or
  * the notification flow — the email is simply sent without an attachment.
  */
-export async function fetchZohoInvoicePdfBase64(
+export async function fetchZohoInvoicePdf(
   invoiceId: string,
   config: ZohoConfig,
   token: string,
-): Promise<string | null> {
+): Promise<Buffer | null> {
   try {
     const url = new URL(`${zohoApiBaseUrl(config.dc)}/invoices/${invoiceId}`);
     url.searchParams.set("organization_id", config.organizationId);
@@ -345,12 +346,46 @@ export async function fetchZohoInvoicePdfBase64(
     }
 
     const buffer = Buffer.from(await response.arrayBuffer());
-    if (buffer.length === 0) {
-      return null;
-    }
-    return buffer.toString("base64");
+    return buffer.length > 0 ? buffer : null;
   } catch (error) {
     console.error("ZOHO_INVOICE_PDF_FETCH_UNEXPECTED", {
+      invoiceId,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
+export async function fetchZohoInvoicePdfBase64(
+  invoiceId: string,
+  config: ZohoConfig,
+  token: string,
+): Promise<string | null> {
+  const buffer = await fetchZohoInvoicePdf(invoiceId, config, token);
+  return buffer ? buffer.toString("base64") : null;
+}
+
+/**
+ * Fetch the PDF for a booking's synced Zoho invoice. Returns null when the
+ * booking has no invoice or Zoho is unavailable. Used by the dashboard download
+ * route; authorization is handled by the caller.
+ */
+export async function getZohoInvoicePdfForBooking(
+  invoiceId: string,
+): Promise<{ pdf: Buffer; filename: string } | null> {
+  const config = getZohoConfig();
+  if (!config || !invoiceId) {
+    return null;
+  }
+  try {
+    const token = await getZohoAccessToken(config);
+    const pdf = await fetchZohoInvoicePdf(invoiceId, config, token);
+    if (!pdf) {
+      return null;
+    }
+    return { pdf, filename: `Invoice-${invoiceId}.pdf` };
+  } catch (error) {
+    console.error("ZOHO_INVOICE_PDF_FOR_BOOKING_FAILED", {
       invoiceId,
       message: error instanceof Error ? error.message : String(error),
     });
@@ -388,6 +423,12 @@ export async function loadZohoBookingSnapshot(
   }));
   const equipmentRow = (equipmentResult.data ?? []).find((row) => row.price_cents > 0) ?? null;
 
+  const occurrenceCount = Math.max(1, booking.occurrence_count ?? 1);
+  const seriesTotalCents = booking.series_total_cents ?? booking.final_total_cents;
+  // The amount charged for this occurrence after any recurring frequency
+  // discount (series total spread across the prepaid occurrences).
+  const invoiceTotalCents = Math.round(seriesTotalCents / occurrenceCount);
+
   return {
     bookingId: booking.id,
     bookingReference: bookingReferenceFor(booking.id),
@@ -406,7 +447,43 @@ export async function loadZohoBookingSnapshot(
     finalTotalCents: booking.final_total_cents,
     paymentStatus: booking.payment_status,
     currencyCode: "ZAR",
+    propertyType: booking.property_type ?? null,
+    bedrooms: typeof booking.bedrooms === "number" ? booking.bedrooms : null,
+    bathrooms: typeof booking.bathrooms === "number" ? booking.bathrooms : null,
+    extraRooms: typeof booking.extra_rooms === "number" ? booking.extra_rooms : null,
+    frequency: booking.recurrence_frequency ?? "once",
+    occurrenceCount,
+    invoiceTotalCents,
+    breakdownLines: extractBreakdownLines(booking.pricing_snapshot),
   };
+}
+
+/**
+ * Extract itemized pricing lines (base, per-bedroom/bathroom, add-ons, etc.)
+ * from the stored pricing snapshot so the invoice records every booking choice.
+ * Returns [] for missing/legacy snapshots so the caller falls back gracefully.
+ */
+function extractBreakdownLines(pricingSnapshot: unknown): ZohoBreakdownLine[] {
+  if (!pricingSnapshot || typeof pricingSnapshot !== "object") {
+    return [];
+  }
+  const breakdown = (pricingSnapshot as { breakdown?: unknown }).breakdown;
+  if (!Array.isArray(breakdown)) {
+    return [];
+  }
+  return breakdown.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const record = item as { label?: unknown; amountCents?: unknown; category?: unknown };
+    if (typeof record.label !== "string" || typeof record.amountCents !== "number") return [];
+    if (record.amountCents <= 0) return [];
+    return [
+      {
+        label: record.label,
+        amountCents: record.amountCents,
+        category: typeof record.category === "string" ? record.category : undefined,
+      },
+    ];
+  });
 }
 
 /**
@@ -486,12 +563,14 @@ export async function syncBookingToZohoBooks(
     const invoice = await createZohoInvoice(snapshot, contactId, config, token);
 
     // The booking is paid upfront via Paystack — record a full payment so the
-    // Zoho invoice is marked Paid. If that fails, at least mark it as sent.
+    // Zoho invoice is marked Paid. Use the discounted invoice total so the
+    // payment exactly clears the (possibly frequency-discounted) balance.
+    const chargedAmountCents = snapshot.invoiceTotalCents ?? snapshot.finalTotalCents;
     const markedPaid = await recordZohoInvoicePayment(
       {
         invoiceId: invoice.invoiceId,
         contactId,
-        amountCents: snapshot.finalTotalCents,
+        amountCents: chargedAmountCents,
         reference: snapshot.bookingReference,
       },
       config,
@@ -527,7 +606,7 @@ export async function syncBookingToZohoBooks(
       customerName: snapshot.customerName,
       invoiceNumber: invoice.invoiceNumber ?? snapshot.bookingReference,
       serviceName: snapshot.serviceName,
-      amountCents: snapshot.finalTotalCents,
+      amountCents: chargedAmountCents,
       invoiceUrl,
       pdfBase64: invoicePdfBase64,
     });
