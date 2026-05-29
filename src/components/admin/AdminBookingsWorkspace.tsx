@@ -7,7 +7,7 @@ import { AdminBookingCreateDrawer } from "@/components/admin/AdminBookingCreateD
 import { AdminBookingDetailDrawer } from "@/components/admin/AdminBookingDetailDrawer";
 import { AdminBookingsDataGrid } from "@/components/admin/AdminBookingsDataGrid";
 import { AdminBookingsOperationsSummary } from "@/components/admin/AdminBookingsOperationsSummary";
-import { ADMIN_PAGE_DESCRIPTION_CLASS, ADMIN_PAGE_TITLE_CLASS } from "@/components/admin/admin-page-styles";
+import { AdminPageOverviewHeader } from "@/components/admin/AdminPageOverviewHeader";
 import { createAdminBookingAction } from "@/lib/admin/actions";
 import type { BookingsOperationsMetrics } from "@/lib/admin/bookings-ui";
 import type {
@@ -51,24 +51,21 @@ export function AdminBookingsWorkspace({
   }, []);
 
   return (
-    <div className="space-y-5">
-      <header className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-start sm:justify-between sm:p-6">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Operations</p>
-          <h1 className={`mt-2 ${ADMIN_PAGE_TITLE_CLASS}`}>Bookings and assignment</h1>
-          <p className={ADMIN_PAGE_DESCRIPTION_CLASS}>
-            Manage customer bookings, payments, invoices, and cleaner assignments.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setCreateOpen(true)}
-          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 self-start rounded-lg bg-emerald-700 px-4 text-sm font-bold text-white transition hover:bg-emerald-600"
-        >
-          <Plus className="h-4 w-4" />
-          Create booking
-        </button>
-      </header>
+    <div className="space-y-4">
+      <AdminPageOverviewHeader
+        title="Bookings and assignment"
+        description="Manage customer bookings, payments, invoices, and cleaner assignments."
+        action={
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="inline-flex h-fit shrink-0 items-center justify-center gap-2 self-start rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-600"
+          >
+            <Plus className="h-4 w-4" />
+            Create booking
+          </button>
+        }
+      />
 
       <AdminBookingsOperationsSummary metrics={metrics} onPendingAssignmentClick={openNeedsAction} />
 

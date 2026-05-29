@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { ADMIN_PAGE_DESCRIPTION_CLASS, ADMIN_PAGE_TITLE_CLASS } from "@/components/admin/admin-page-styles";
+import { AdminPageOverviewHeader } from "@/components/admin/AdminPageOverviewHeader";
 import { loadAdminDashboard, type DashboardBooking } from "@/lib/dashboard/data";
 import { formatZar, slugToTitle } from "@/lib/utils";
 
@@ -45,20 +45,16 @@ export default async function AdminDashboardPage() {
 
   return (
     <div className="space-y-4">
-      <section className="py-1">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h1 className={ADMIN_PAGE_TITLE_CLASS}>Dashboard overview</h1>
-            <p className={ADMIN_PAGE_DESCRIPTION_CLASS}>
-              Monitor bookings, cleaners, payments, and operational risk in one place.
-            </p>
-          </div>
+      <AdminPageOverviewHeader
+        title="Dashboard overview"
+        description="Monitor bookings, cleaners, payments, and operational risk in one place."
+        action={
           <Badge className="inline-flex h-fit items-center gap-1.5 border-emerald-200 bg-emerald-50 text-emerald-700">
             <CalendarDays className="h-3.5 w-3.5" />
             <span>{model.todayDisplay}</span>
           </Badge>
-        </div>
-      </section>
+        }
+      />
 
       <section className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {model.kpis.map((kpi) => (
