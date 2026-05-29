@@ -4,28 +4,30 @@ export type BookingSource = "admin" | "online";
 
 export type BookingsTab = "all" | "needs_action" | "upcoming" | "completed" | "cancelled";
 
-export type BookingsOperationsMetrics = {
-  todaysBookings: number;
-  todaysBookingsDelta: number;
+/** Quick filters applied when an operations action card is clicked. */
+export type BookingsActionFilter =
+  | "needs_action"
+  | "unassigned"
+  | "pending_payment"
+  | "invoice_issues"
+  | "zoho_failed"
+  | "todays_jobs";
+
+export type BookingsActionMetrics = {
+  needsActionCount: number;
+  unassignedCount: number;
   pendingPaymentCount: number;
-  pendingPaymentCents: number;
-  pendingAssignmentCount: number;
-  completedTodayCount: number;
-  completedTodayDelta: number;
-  overdueInvoicesCount: number;
-  overdueInvoicesCents: number;
-  revenueThisMonthCents: number;
-  revenueMonthDeltaPercent: number | null;
+  invoiceIssuesCount: number;
+  zohoSyncErrorsCount: number;
+  todaysJobsCount: number;
 };
+
+const MANUAL_PAYMENT_METHODS = new Set(["eft", "cash", "card", "corporate", "other"]);
+
+const INACTIVE_BOOKING_STATUSES = new Set(["cancelled", "completed", "draft"]);
 
 function formatDateKey(date: Date) {
   return date.toISOString().slice(0, 10);
-}
-
-function shiftDateKey(iso: string, days: number) {
-  const date = new Date(`${iso}T12:00:00`);
-  date.setDate(date.getDate() + days);
-  return formatDateKey(date);
 }
 
 export function paymentStatusForBooking(booking: AdminBookingListItem) {
@@ -51,27 +53,90 @@ export function isPaymentOverdue(booking: AdminBookingListItem, todayIso: string
   return booking.booking_date < todayIso;
 }
 
+export function bookingIsUnassigned(booking: AdminBookingListItem) {
+  return !booking.selected_cleaner_id && !INACTIVE_BOOKING_STATUSES.has(booking.booking_status);
+}
+
+/** Bookings with payment_status pending (used for the Pending Payments action card). */
+export function bookingPaymentStatusPending(booking: AdminBookingListItem) {
+  return paymentStatusForBooking(booking) === "pending" && booking.booking_status !== "cancelled";
+}
+
+/** Any unpaid booking (broader — used inside Needs Action). */
+export function bookingHasPendingPayment(booking: AdminBookingListItem) {
+  const status = paymentStatusForBooking(booking);
+  return status !== "paid" && status !== "refunded" && booking.booking_status !== "cancelled";
+}
+
+export function bookingHasZohoSyncError(booking: AdminBookingListItem) {
+  return booking.zoho_sync_status === "failed";
+}
+
+export function bookingHasInvoiceIssue(booking: AdminBookingListItem, todayIso: string) {
+  if (INACTIVE_BOOKING_STATUSES.has(booking.booking_status)) return false;
+
+  const invoiceStatus = booking.invoice_status ?? "pending";
+  if (invoiceStatus === "voided") return true;
+
+  const paymentStatus = paymentStatusForBooking(booking);
+  const unpaid = paymentStatus !== "paid" && paymentStatus !== "refunded";
+
+  if (invoiceStatus === "pending" && unpaid) return true;
+  if (invoiceStatus === "created" && isPaymentOverdue(booking, todayIso)) return true;
+
+  return false;
+}
+
+export function bookingNeedsManualPaymentReview(booking: AdminBookingListItem) {
+  const method = booking.payment_method?.toLowerCase();
+  if (!method || method === "paystack" || !MANUAL_PAYMENT_METHODS.has(method)) return false;
+
+  const paymentStatus = paymentStatusForBooking(booking);
+  if (paymentStatus === "paid" || paymentStatus === "refunded") return false;
+  if (booking.booking_status === "cancelled") return false;
+
+  return paymentStatus === "pending" || paymentStatus === "partially_paid" || booking.amount_paid_cents > 0;
+}
+
+export function bookingIsTodaysJob(booking: AdminBookingListItem, todayIso: string) {
+  return booking.booking_date === todayIso && booking.booking_status !== "cancelled";
+}
+
 export function bookingNeedsAction(
   booking: AdminBookingListItem,
   todayIso: string,
 ): boolean {
-  const paymentStatus = paymentStatusForBooking(booking);
-  const missingCleaner =
-    !booking.selected_cleaner_id &&
-    !["cancelled", "completed", "draft"].includes(booking.booking_status);
-  const pendingPayment = paymentStatus !== "paid" && paymentStatus !== "refunded";
-  const zohoFailed = booking.zoho_sync_status === "failed";
-  const invoiceIssue =
-    booking.invoice_status === "voided" ||
-    (pendingPayment && booking.invoice_status === "created" && isPaymentOverdue(booking, todayIso));
-
   return (
-    missingCleaner ||
-    pendingPayment ||
-    zohoFailed ||
-    invoiceIssue ||
+    bookingIsUnassigned(booking) ||
+    bookingHasPendingPayment(booking) ||
+    bookingHasInvoiceIssue(booking, todayIso) ||
+    bookingHasZohoSyncError(booking) ||
+    bookingNeedsManualPaymentReview(booking) ||
     isPaymentOverdue(booking, todayIso)
   );
+}
+
+export function matchesBookingsActionFilter(
+  booking: AdminBookingListItem,
+  filter: BookingsActionFilter,
+  todayIso: string,
+): boolean {
+  switch (filter) {
+    case "needs_action":
+      return bookingNeedsAction(booking, todayIso);
+    case "unassigned":
+      return bookingIsUnassigned(booking);
+    case "pending_payment":
+      return bookingPaymentStatusPending(booking);
+    case "invoice_issues":
+      return bookingHasInvoiceIssue(booking, todayIso);
+    case "zoho_failed":
+      return bookingHasZohoSyncError(booking);
+    case "todays_jobs":
+      return bookingIsTodaysJob(booking, todayIso);
+    default:
+      return true;
+  }
 }
 
 export function matchesBookingsTab(
@@ -95,81 +160,24 @@ export function countNeedsAction(bookings: AdminBookingListItem[], todayIso: str
   return bookings.filter((booking) => bookingNeedsAction(booking, todayIso)).length;
 }
 
-export function computeBookingsOperationsMetrics(
+export function computeBookingsActionMetrics(
   bookings: AdminBookingListItem[],
-): BookingsOperationsMetrics {
+): BookingsActionMetrics {
   const todayIso = formatDateKey(new Date());
-  const yesterdayIso = shiftDateKey(todayIso, -1);
-  const monthStartIso = `${todayIso.slice(0, 8)}01`;
-  const lastMonthStart = shiftDateKey(monthStartIso, -1);
-  const lastMonthEnd = shiftDateKey(monthStartIso, -1);
-
-  const todayBookings = bookings.filter((booking) => booking.booking_date === todayIso);
-  const yesterdayBookings = bookings.filter((booking) => booking.booking_date === yesterdayIso);
-  const completedToday = bookings.filter(
-    (booking) => booking.booking_status === "completed" && booking.booking_date === todayIso,
-  );
-  const completedYesterday = bookings.filter(
-    (booking) => booking.booking_status === "completed" && booking.booking_date === yesterdayIso,
-  );
-
-  const pendingPaymentBookings = bookings.filter((booking) => {
-    const status = paymentStatusForBooking(booking);
-    return status !== "paid" && status !== "refunded" && booking.booking_status !== "cancelled";
-  });
-
-  const pendingAssignment = bookings.filter(
-    (booking) =>
-      !booking.selected_cleaner_id &&
-      !["cancelled", "completed", "draft"].includes(booking.booking_status),
-  );
-
-  const overdueInvoices = bookings.filter((booking) => {
-    const status = paymentStatusForBooking(booking);
-    if (status === "paid" || status === "refunded") return false;
-    if (booking.booking_status === "cancelled") return false;
-    return (
-      booking.invoice_status === "created" &&
-      booking.booking_date < todayIso
-    );
-  });
-
-  const thisMonthPaid = bookings.filter((booking) => {
-    const status = paymentStatusForBooking(booking);
-    return (
-      status === "paid" &&
-      booking.booking_date >= monthStartIso &&
-      booking.booking_date <= todayIso
-    );
-  });
-
-  const lastMonthPaid = bookings.filter((booking) => {
-    const status = paymentStatusForBooking(booking);
-    return (
-      status === "paid" &&
-      booking.booking_date >= lastMonthStart &&
-      booking.booking_date <= lastMonthEnd
-    );
-  });
-
-  const revenueThisMonthCents = thisMonthPaid.reduce((total, booking) => total + booking.final_total_cents, 0);
-  const revenueLastMonthCents = lastMonthPaid.reduce((total, booking) => total + booking.final_total_cents, 0);
-  const revenueMonthDeltaPercent =
-    revenueLastMonthCents > 0
-      ? Math.round(((revenueThisMonthCents - revenueLastMonthCents) / revenueLastMonthCents) * 100)
-      : null;
 
   return {
-    todaysBookings: todayBookings.length,
-    todaysBookingsDelta: todayBookings.length - yesterdayBookings.length,
-    pendingPaymentCount: pendingPaymentBookings.length,
-    pendingPaymentCents: pendingPaymentBookings.reduce((total, booking) => total + booking.final_total_cents, 0),
-    pendingAssignmentCount: pendingAssignment.length,
-    completedTodayCount: completedToday.length,
-    completedTodayDelta: completedToday.length - completedYesterday.length,
-    overdueInvoicesCount: overdueInvoices.length,
-    overdueInvoicesCents: overdueInvoices.reduce((total, booking) => total + booking.final_total_cents, 0),
-    revenueThisMonthCents,
-    revenueMonthDeltaPercent,
+    needsActionCount: countNeedsAction(bookings, todayIso),
+    unassignedCount: bookings.filter(bookingIsUnassigned).length,
+    pendingPaymentCount: bookings.filter(bookingPaymentStatusPending).length,
+    invoiceIssuesCount: bookings.filter((booking) => bookingHasInvoiceIssue(booking, todayIso)).length,
+    zohoSyncErrorsCount: bookings.filter(bookingHasZohoSyncError).length,
+    todaysJobsCount: bookings.filter((booking) => bookingIsTodaysJob(booking, todayIso)).length,
   };
+}
+
+/** @deprecated Use computeBookingsActionMetrics — kept for gradual migration if imported elsewhere. */
+export type BookingsOperationsMetrics = BookingsActionMetrics;
+
+export function computeBookingsOperationsMetrics(bookings: AdminBookingListItem[]): BookingsActionMetrics {
+  return computeBookingsActionMetrics(bookings);
 }

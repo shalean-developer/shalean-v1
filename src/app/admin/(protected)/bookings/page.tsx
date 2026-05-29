@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { AdminBookingsWorkspace } from "@/components/admin/AdminBookingsWorkspace";
-import { computeBookingsOperationsMetrics } from "@/lib/admin/bookings-ui";
+import { computeBookingsActionMetrics } from "@/lib/admin/bookings-ui";
 import {
   loadAdminBookings,
   loadAdminCreatedBookingIds,
@@ -28,7 +28,7 @@ export default async function AdminBookingsPage({ searchParams }: PageProps) {
     loadAdminCreatedBookingIds(),
   ]);
 
-  const metrics = computeBookingsOperationsMetrics(bookings);
+  const metrics = computeBookingsActionMetrics(bookings);
 
   return (
     <AdminBookingsWorkspace

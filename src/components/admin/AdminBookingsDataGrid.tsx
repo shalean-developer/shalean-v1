@@ -11,8 +11,10 @@ import {
   bookingSourceFor,
   countNeedsAction,
   formatBookingReference,
+  matchesBookingsActionFilter,
   matchesBookingsTab,
   paymentStatusForBooking,
+  type BookingsActionFilter,
   type BookingsTab,
   type BookingSource,
 } from "@/lib/admin/bookings-ui";
@@ -32,7 +34,7 @@ const DEFAULT_PAGE_SIZE = 10;
 
 const TABS: Array<{ id: BookingsTab; label: string }> = [
   { id: "all", label: "All bookings" },
-  { id: "needs_action", label: "Needs action" },
+  { id: "needs_action", label: "Needs Action" },
   { id: "upcoming", label: "Upcoming" },
   { id: "completed", label: "Completed" },
   { id: "cancelled", label: "Cancelled" },
@@ -48,6 +50,8 @@ export function AdminBookingsDataGrid({
   adminCreatedBookingIds,
   activeTab,
   onTabChange,
+  actionFilter,
+  onActionFilterClear,
   onViewBooking,
 }: {
   bookings: AdminBookingListItem[];
@@ -55,12 +59,15 @@ export function AdminBookingsDataGrid({
   adminCreatedBookingIds: ReadonlySet<string>;
   activeTab: BookingsTab;
   onTabChange: (tab: BookingsTab) => void;
+  actionFilter?: BookingsActionFilter | null;
+  onActionFilterClear?: () => void;
   onViewBooking?: (booking: AdminBookingListItem) => void;
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [invoiceFilter, setInvoiceFilter] = useState("all");
+  const [zohoFilter, setZohoFilter] = useState("all");
   const [cleanerFilter, setCleanerFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState<"all" | BookingSource>("all");
   const [dateFilter, setDateFilter] = useState("");
@@ -69,6 +76,12 @@ export function AdminBookingsDataGrid({
 
   const today = todayIso();
   const needsActionCount = useMemo(() => countNeedsAction(bookings, today), [bookings, today]);
+
+  const effectivePaymentFilter =
+    actionFilter === "pending_payment" ? "pending" : paymentFilter;
+  const effectiveCleanerFilter = actionFilter === "unassigned" ? "unassigned" : cleanerFilter;
+  const effectiveZohoFilter = actionFilter === "zoho_failed" ? "failed" : zohoFilter;
+  const effectiveDateFilter = actionFilter === "todays_jobs" ? today : dateFilter;
 
   const cleanersById = useMemo(
     () =>
@@ -93,12 +106,17 @@ export function AdminBookingsDataGrid({
     () => ["all", ...Array.from(new Set(bookings.map((booking) => booking.invoice_status ?? "pending")))],
     [bookings],
   );
+  const zohoOptions = useMemo(
+    () => ["all", ...Array.from(new Set(bookings.map((booking) => booking.zoho_sync_status ?? "pending")))],
+    [bookings],
+  );
 
   const filteredBookings = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
 
     return bookings.filter((booking) => {
       if (!matchesBookingsTab(booking, activeTab, today)) return false;
+      if (actionFilter && !matchesBookingsActionFilter(booking, actionFilter, today)) return false;
 
       const cleanerId = booking.selected_cleaner_id ?? "";
       const cleanerName = cleanerId ? cleanersById.get(cleanerId) ?? "" : "";
@@ -107,12 +125,19 @@ export function AdminBookingsDataGrid({
       const ref = formatBookingReference(booking).toLowerCase();
 
       if (statusFilter !== "all" && booking.booking_status !== statusFilter) return false;
-      if (paymentFilter !== "all" && paymentStatus !== paymentFilter) return false;
+      if (effectivePaymentFilter !== "all" && paymentStatus !== effectivePaymentFilter) return false;
       if (invoiceFilter !== "all" && (booking.invoice_status ?? "pending") !== invoiceFilter) return false;
+      if (effectiveZohoFilter !== "all" && (booking.zoho_sync_status ?? "pending") !== effectiveZohoFilter)
+        return false;
       if (sourceFilter !== "all" && source !== sourceFilter) return false;
-      if (cleanerFilter === "unassigned" && cleanerId) return false;
-      if (cleanerFilter !== "all" && cleanerFilter !== "unassigned" && cleanerId !== cleanerFilter) return false;
-      if (dateFilter && booking.booking_date !== dateFilter) return false;
+      if (effectiveCleanerFilter === "unassigned" && cleanerId) return false;
+      if (
+        effectiveCleanerFilter !== "all" &&
+        effectiveCleanerFilter !== "unassigned" &&
+        cleanerId !== effectiveCleanerFilter
+      )
+        return false;
+      if (effectiveDateFilter && booking.booking_date !== effectiveDateFilter) return false;
 
       if (!normalizedSearch) return true;
 
@@ -131,14 +156,16 @@ export function AdminBookingsDataGrid({
       return searchable.includes(normalizedSearch);
     });
   }, [
+    actionFilter,
     activeTab,
     adminCreatedBookingIds,
     bookings,
-    cleanerFilter,
     cleanersById,
-    dateFilter,
+    effectiveCleanerFilter,
+    effectiveDateFilter,
+    effectivePaymentFilter,
+    effectiveZohoFilter,
     invoiceFilter,
-    paymentFilter,
     search,
     sourceFilter,
     statusFilter,
@@ -159,20 +186,29 @@ export function AdminBookingsDataGrid({
     setStatusFilter("all");
     setPaymentFilter("all");
     setInvoiceFilter("all");
+    setZohoFilter("all");
     setCleanerFilter("all");
     setSourceFilter("all");
     setDateFilter("");
     setPage(1);
+    onActionFilterClear?.();
   }
 
   const hasActiveFilters =
+    Boolean(actionFilter) ||
     search ||
     statusFilter !== "all" ||
     paymentFilter !== "all" ||
     invoiceFilter !== "all" ||
+    zohoFilter !== "all" ||
     cleanerFilter !== "all" ||
     sourceFilter !== "all" ||
     dateFilter;
+
+  const displayPaymentFilter = effectivePaymentFilter;
+  const displayCleanerFilter = effectiveCleanerFilter;
+  const displayZohoFilter = effectiveZohoFilter;
+  const displayDateFilter = effectiveDateFilter;
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-sm">
@@ -225,8 +261,9 @@ export function AdminBookingsDataGrid({
             <input
               type="date"
               className="min-h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm outline-none focus:border-emerald-500"
-              value={dateFilter}
+              value={displayDateFilter}
               onChange={(event) => {
+                onActionFilterClear?.();
                 setDateFilter(event.target.value);
                 setPage(1);
               }}
@@ -236,16 +273,36 @@ export function AdminBookingsDataGrid({
             <FilterSelect value={statusFilter} options={statusOptions} onChange={setStatusFilter} setPage={setPage} />
           </CompactFilter>
           <CompactFilter label="Payment status">
-            <FilterSelect value={paymentFilter} options={paymentOptions} onChange={setPaymentFilter} setPage={setPage} />
+            <FilterSelect
+              value={displayPaymentFilter}
+              options={paymentOptions}
+              onChange={(value) => {
+                onActionFilterClear?.();
+                setPaymentFilter(value);
+              }}
+              setPage={setPage}
+            />
           </CompactFilter>
           <CompactFilter label="Invoice status">
             <FilterSelect value={invoiceFilter} options={invoiceOptions} onChange={setInvoiceFilter} setPage={setPage} />
           </CompactFilter>
+          <CompactFilter label="Zoho sync">
+            <FilterSelect
+              value={displayZohoFilter}
+              options={zohoOptions}
+              onChange={(value) => {
+                onActionFilterClear?.();
+                setZohoFilter(value);
+              }}
+              setPage={setPage}
+            />
+          </CompactFilter>
           <CompactFilter label="Cleaner">
             <select
               className="min-h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm outline-none focus:border-emerald-500"
-              value={cleanerFilter}
+              value={displayCleanerFilter}
               onChange={(event) => {
+                onActionFilterClear?.();
                 setCleanerFilter(event.target.value);
                 setPage(1);
               }}

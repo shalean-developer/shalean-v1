@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  bookingHasInvoiceIssue,
   bookingNeedsAction,
-  computeBookingsOperationsMetrics,
+  bookingNeedsManualPaymentReview,
+  computeBookingsActionMetrics,
   countNeedsAction,
   formatBookingReference,
 } from "@/lib/admin/bookings-ui";
@@ -45,21 +47,51 @@ describe("bookingNeedsAction", () => {
   it("flags failed zoho sync", () => {
     expect(
       bookingNeedsAction(
-        booking({ zoho_sync_status: "failed", selected_cleaner_id: "cleaner-1" }),
+        booking({ zoho_sync_status: "failed", selected_cleaner_id: "cleaner-1", payment_status: "paid" }),
         today,
+      ),
+    ).toBe(true);
+  });
+
+  it("flags pending invoice on unpaid bookings", () => {
+    expect(
+      bookingNeedsAction(
+        booking({
+          selected_cleaner_id: "cleaner-1",
+          invoice_status: "pending",
+          payment_status: "pending",
+        }),
+        today,
+      ),
+    ).toBe(true);
+  });
+
+  it("flags manual offline payments awaiting settlement", () => {
+    expect(
+      bookingNeedsManualPaymentReview(
+        booking({ payment_method: "eft", payment_status: "pending", selected_cleaner_id: "c1" }),
       ),
     ).toBe(true);
   });
 });
 
-describe("computeBookingsOperationsMetrics", () => {
-  it("counts today's bookings", () => {
+describe("bookingHasInvoiceIssue", () => {
+  const today = new Date().toISOString().slice(0, 10);
+
+  it("detects voided invoices", () => {
+    expect(bookingHasInvoiceIssue(booking({ invoice_status: "voided" }), today)).toBe(true);
+  });
+});
+
+describe("computeBookingsActionMetrics", () => {
+  it("counts operational buckets", () => {
     const today = new Date().toISOString().slice(0, 10);
-    const metrics = computeBookingsOperationsMetrics([
+    const metrics = computeBookingsActionMetrics([
       booking({ booking_date: today }),
-      booking({ id: "2", booking_date: "2000-01-01" }),
+      booking({ id: "2", booking_date: "2000-01-01", selected_cleaner_id: "c1", payment_status: "paid" }),
     ]);
-    expect(metrics.todaysBookings).toBe(1);
+    expect(metrics.todaysJobsCount).toBe(1);
+    expect(metrics.needsActionCount).toBeGreaterThanOrEqual(1);
   });
 });
 
