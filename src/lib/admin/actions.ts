@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/server";
+import { cleanerStatusToFlags } from "@/lib/admin/cleaner-status";
 import {
   boolValue,
   cleanerEmailFromPhone,
@@ -155,8 +156,13 @@ export async function updatePricingAction(
 export async function createCleanerAction(formData: FormData) {
   const { profile } = await requireAdmin();
   const supabase = createSupabaseAdminClient();
-  const fullName = requiredString(formData, "fullName");
-  const displayName = requiredString(formData, "displayName");
+  // Support the simplified create form (first/last name) while staying
+  // backward compatible with any caller that still posts fullName/displayName.
+  const firstName = optionalString(formData, "firstName");
+  const lastName = optionalString(formData, "lastName");
+  const composedName = [firstName, lastName].filter(Boolean).join(" ").trim();
+  const fullName = composedName || requiredString(formData, "fullName");
+  const displayName = optionalString(formData, "displayName") ?? firstName ?? fullName;
   const phone = normalizeAdminCleanerPhone(requiredString(formData, "phone"));
   const password = requiredString(formData, "password");
   const authEmail = cleanerEmailFromPhone(phone);
@@ -183,6 +189,30 @@ export async function createCleanerAction(formData: FormData) {
 
   if (cleanerResult.error) throw cleanerResult.error;
 
+  revalidateAdmin();
+
+  if (formData.get("redirectToList") === "true") {
+    redirect("/admin/cleaners?success=cleaner-created");
+  }
+}
+
+export async function setCleanerStatusAction(formData: FormData) {
+  await requireAdmin();
+  const supabase = createSupabaseAdminClient();
+  const cleanerId = requiredString(formData, "cleanerId");
+  const status = requiredString(formData, "status");
+
+  if (status !== "active" && status !== "inactive" && status !== "suspended") {
+    throw new Error("Unsupported cleaner status.");
+  }
+
+  const flags = cleanerStatusToFlags(status);
+  const updateResult = await supabase
+    .from("cleaners")
+    .update({ active: flags.active, available: flags.available })
+    .eq("id", cleanerId);
+
+  if (updateResult.error) throw updateResult.error;
   revalidateAdmin();
 }
 

@@ -2,111 +2,16 @@ import type React from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { CleanerPhoneField } from "@/components/admin/CleanerPhoneField";
 import { AdminBookingWizardCard } from "@/components/admin/AdminBookingWizardCard";
 import {
   createAdminBookingAction,
-  createCleanerAction,
   createCustomerAction,
-  resetCleanerPasswordAction,
   resetCustomerPasswordAction,
-  updateCleanerAction,
   updateCustomerAction,
 } from "@/lib/admin/actions";
 import type { AddonRow, AdminPayment, CleanerRow, CustomerRow, EquipmentRow } from "@/lib/admin/data";
-import { cleanerEmailFromPhone, normalizeAdminCleanerPhone } from "@/lib/admin/utils";
 import { bookingTransitions } from "@/lib/booking/lifecycle";
 import { formatZar, slugToTitle } from "@/lib/utils";
-
-export function CreateCleanerCard() {
-  return (
-    <Card className="border-slate-200 bg-white p-5 text-slate-950">
-      <h2 className="text-xl font-bold">Create cleaner</h2>
-      <form action={createCleanerAction} className="mt-4 grid gap-3">
-        <AdminInput label="Full name" name="fullName" required />
-        <AdminInput label="Display name" name="displayName" required />
-        <CleanerPhoneField label="Phone number" />
-        <AdminInput label="Temporary password" name="password" type="password" minLength={6} required />
-        <AdminInput label="Service areas" name="suburbs" placeholder="Sea Point, Claremont" required />
-        <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-          <input name="equipmentEligible" type="checkbox" defaultChecked />
-          Equipment eligible
-        </label>
-        <SubmitButton>Create cleaner</SubmitButton>
-      </form>
-    </Card>
-  );
-}
-
-export function CleanerManagement({ cleaners }: { cleaners: CleanerRow[] }) {
-  return (
-    <Card className="border-slate-200 bg-white p-5 text-slate-950">
-      <h2 className="text-xl font-bold">Cleaner accounts</h2>
-      <div className="mt-4 grid gap-3">
-        {cleaners.map((cleaner) => {
-          const phone = normalizeAdminCleanerPhone(cleaner.phone ?? "");
-          const hasPhone = Boolean(phone);
-          const cleanerEmail = hasPhone ? safeCleanerEmail(phone) : "Phone required before email can be generated";
-
-          return (
-            <div key={cleaner.id} className="rounded-md bg-slate-50 p-3 text-sm">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p className="font-bold text-slate-950">{cleaner.display_name ?? cleaner.full_name ?? "Unnamed cleaner"}</p>
-                  <p className="mt-1 text-slate-600">Phone: {phone || "Missing phone"}</p>
-                  <p className="mt-1 break-all text-slate-600">Email: {cleanerEmail}</p>
-                  {!hasPhone ? <p className="mt-2 font-semibold text-red-700">Phone is required before this cleaner can be saved or assigned credentials.</p> : null}
-                </div>
-                <Badge className={cleaner.active ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-600"}>
-                  {cleaner.active ? "Active" : "Inactive"}
-                </Badge>
-              </div>
-
-              <div className="mt-3 grid gap-2">
-                <details className="rounded-md border border-slate-200 bg-white p-3">
-                  <summary className="cursor-pointer font-bold text-slate-950">Edit cleaner</summary>
-                  <form action={updateCleanerAction} className="mt-3 grid gap-3">
-                    <input type="hidden" name="cleanerId" value={cleaner.id} />
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 [&>*]:min-w-0">
-                      <AdminInput label="Full name" name="fullName" defaultValue={cleaner.full_name ?? ""} required />
-                      <AdminInput label="Display name" name="displayName" defaultValue={cleaner.display_name ?? ""} required />
-                      <div className="min-w-0 sm:col-span-2 lg:col-span-1">
-                        <CleanerPhoneField defaultValue={phone} />
-                      </div>
-                    </div>
-                    <AdminInput
-                      label="Service areas"
-                      name="suburbs"
-                      defaultValue={cleaner.suburbs.join(", ")}
-                      placeholder="Sea Point, Claremont"
-                    />
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <AdminSelect label="Active" name="active" defaultValue={cleaner.active ? "true" : "false"} options={booleanOptions} />
-                      <AdminSelect label="Available" name="available" defaultValue={cleaner.available ? "true" : "false"} options={booleanOptions} />
-                      <AdminSelect label="Equipment" name="equipmentEligible" defaultValue={cleaner.equipment_eligible ? "true" : "false"} options={booleanOptions} />
-                    </div>
-                    <SubmitButton>Save cleaner</SubmitButton>
-                  </form>
-                </details>
-
-                <details className="rounded-md border border-slate-200 bg-white p-3">
-                  <summary className="cursor-pointer font-bold text-slate-950">
-                    {cleaner.password_set_at ? "Reset password" : "Set password"}
-                  </summary>
-                  <form action={resetCleanerPasswordAction} className="mt-3 grid max-w-md gap-3">
-                    <input type="hidden" name="cleanerId" value={cleaner.id} />
-                    <AdminInput label="New password" name="password" type="password" minLength={6} required />
-                    <SubmitButton>{cleaner.password_set_at ? "Reset password" : "Set password"}</SubmitButton>
-                  </form>
-                </details>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </Card>
-  );
-}
 
 export function CustomerFormCard() {
   return (
@@ -325,43 +230,10 @@ function AdminInput({ label, ...props }: React.InputHTMLAttributes<HTMLInputElem
   );
 }
 
-function AdminSelect({
-  label,
-  options,
-  ...props
-}: React.SelectHTMLAttributes<HTMLSelectElement> & {
-  label: string;
-  options: Array<{ value: string; label: string }>;
-}) {
-  return (
-    <label>
-      <span className="text-sm font-semibold text-slate-700">{label}</span>
-      <select className="mt-2 min-h-11 w-full rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-emerald-700" {...props}>
-        {options.map((option) => (
-          <option key={`${props.name}-${option.value}`} value={option.value}>{option.label}</option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
 function SubmitButton({ children }: { children: React.ReactNode }) {
   return (
     <button className="rounded-md bg-emerald-700 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-800" type="submit">
       {children}
     </button>
   );
-}
-
-const booleanOptions = [
-  { value: "true", label: "Yes" },
-  { value: "false", label: "No" },
-];
-
-function safeCleanerEmail(phone: string) {
-  try {
-    return cleanerEmailFromPhone(phone);
-  } catch {
-    return "Valid phone required before email can be generated";
-  }
 }
