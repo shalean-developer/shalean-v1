@@ -104,6 +104,7 @@ export async function verifyPaystackTransaction(reference: string) {
     status: boolean;
     message: string;
     data?: {
+      id?: number | string;
       amount?: number;
       currency?: string;
       reference?: string;
@@ -123,6 +124,7 @@ export async function verifyPaystackTransaction(reference: string) {
     reference: payload.data?.reference ?? reference,
     providerStatus: payload.data?.status ?? "unknown",
     paidAt: payload.data?.paid_at ?? null,
+    transactionId: payload.data?.id != null ? String(payload.data.id) : null,
     bookingId: payload.data?.metadata?.bookingId,
     raw: payload,
   };

@@ -43,7 +43,31 @@ export type ZohoSyncResult = {
   zohoInvoiceId?: string | null;
   zohoInvoiceNumber?: string | null;
   zohoInvoiceUrl?: string | null;
+  invoiceStatus?: "pending" | "created" | "paid" | "voided" | null;
   error?: string | null;
+};
+
+export type ZohoSyncOptions = {
+  supabase?: Supabase;
+  /** Bypass the "already synced" short-circuit (admin retry). */
+  force?: boolean;
+  /**
+   * Create the Zoho invoice even when the booking is not yet paid. Used by the
+   * admin-assisted flow to issue an unpaid invoice + payment link up front. The
+   * customer checkout never sets this, so a customer invoice is still only ever
+   * created after payment.
+   */
+  allowUnpaid?: boolean;
+  /**
+   * Record the payment against the invoice using these details instead of the
+   * defaults. Used by manual/offline payment recording (EFT, cash, card, etc.).
+   */
+  paymentOverride?: {
+    amountCents: number;
+    paymentMode: string;
+    reference: string;
+    date: string;
+  };
 };
 
 type CachedToken = {
@@ -255,6 +279,7 @@ export async function recordZohoInvoicePayment(
   input: { invoiceId: string; contactId: string; amountCents: number; reference: string },
   config?: ZohoConfig,
   token?: string,
+  override?: { paymentMode?: string; date?: string },
 ): Promise<boolean> {
   const resolved = config ?? getZohoConfig();
   if (!resolved) {
@@ -273,8 +298,8 @@ export async function recordZohoInvoicePayment(
       invoiceId: input.invoiceId,
       amountCents: input.amountCents,
       reference: input.reference,
-      date: new Date().toISOString().slice(0, 10),
-      paymentMode: process.env.ZOHO_PAYMENT_MODE?.trim() || "banktransfer",
+      date: override?.date ?? new Date().toISOString().slice(0, 10),
+      paymentMode: override?.paymentMode?.trim() || process.env.ZOHO_PAYMENT_MODE?.trim() || "banktransfer",
       accountId,
     });
 
@@ -492,9 +517,12 @@ function extractBreakdownLines(pricingSnapshot: unknown): ZohoBreakdownLine[] {
  */
 export async function syncBookingToZohoBooks(
   bookingId: string,
-  options?: { supabase?: Supabase; force?: boolean },
+  options?: ZohoSyncOptions,
 ): Promise<ZohoSyncResult> {
   const supabase = options?.supabase ?? createSupabaseAdminClient();
+  const force = options?.force ?? false;
+  const allowUnpaid = options?.allowUnpaid ?? false;
+  const paymentOverride = options?.paymentOverride;
 
   let bookingRow:
     | Database["public"]["Tables"]["bookings"]["Row"]
@@ -520,8 +548,16 @@ export async function syncBookingToZohoBooks(
     return { bookingId, status: "failed", error: "Booking not found for Zoho sync." };
   }
 
-  // Idempotency: never create a duplicate invoice for an already-synced booking.
-  if (!options?.force && bookingRow.zoho_sync_status === "synced" && bookingRow.zoho_invoice_id) {
+  const isPaid = bookingRow.payment_status === "paid" || Boolean(paymentOverride);
+  const hasInvoice = Boolean(bookingRow.zoho_invoice_id);
+  // An admin-issued unpaid invoice is recorded with invoice_status === "created".
+  // When such a booking is later paid we must fall through to record the payment
+  // against the existing invoice (not create a new one).
+  const needsPaymentRecording = isPaid && bookingRow.invoice_status === "created";
+
+  // Idempotency: never create a duplicate invoice for an already-synced booking,
+  // and never re-record a payment once the invoice is already marked paid.
+  if (!force && bookingRow.zoho_sync_status === "synced" && hasInvoice && !needsPaymentRecording) {
     return {
       bookingId,
       status: "synced",
@@ -529,6 +565,7 @@ export async function syncBookingToZohoBooks(
       zohoInvoiceId: bookingRow.zoho_invoice_id,
       zohoInvoiceNumber: bookingRow.zoho_invoice_number,
       zohoInvoiceUrl: bookingRow.zoho_invoice_url,
+      invoiceStatus: (bookingRow.invoice_status as ZohoSyncResult["invoiceStatus"]) ?? null,
     };
   }
 
@@ -545,7 +582,9 @@ export async function syncBookingToZohoBooks(
     return { bookingId, status: "skipped", error: message };
   }
 
-  if (bookingRow.payment_status !== "paid") {
+  // The customer flow only ever syncs paid bookings. The admin flow may issue an
+  // unpaid invoice up front (allowUnpaid) so the customer can be sent a link.
+  if (!isPaid && !allowUnpaid) {
     await persistSyncOutcome(supabase, bookingId, {
       zoho_sync_status: "skipped",
       zoho_sync_error: "Booking is not paid; Zoho sync skipped.",
@@ -560,64 +599,98 @@ export async function syncBookingToZohoBooks(
     const snapshot = await loadZohoBookingSnapshot(supabase, bookingId);
     const contactId =
       bookingRow.zoho_contact_id ?? (await createOrFindZohoCustomer(snapshot, config, token));
-    const invoice = await createZohoInvoice(snapshot, contactId, config, token);
 
-    // The booking is paid upfront via Paystack — record a full payment so the
-    // Zoho invoice is marked Paid. Use the discounted invoice total so the
-    // payment exactly clears the (possibly frequency-discounted) balance.
-    const chargedAmountCents = snapshot.invoiceTotalCents ?? snapshot.finalTotalCents;
-    const markedPaid = await recordZohoInvoicePayment(
-      {
-        invoiceId: invoice.invoiceId,
-        contactId,
-        amountCents: chargedAmountCents,
-        reference: snapshot.bookingReference,
-      },
-      config,
-      token,
-    );
-    if (!markedPaid) {
-      await markZohoInvoiceAsSent(invoice.invoiceId, config, token);
+    // Reuse the existing invoice when present (idempotent across retries, unpaid
+    // → paid transitions, and repeated webhook events). Only create one when the
+    // booking has no Zoho invoice yet.
+    let invoiceId = bookingRow.zoho_invoice_id ?? null;
+    let invoiceNumber = bookingRow.zoho_invoice_number ?? null;
+    let invoiceWasCreated = false;
+    if (!invoiceId) {
+      const created = await createZohoInvoice(snapshot, contactId, config, token);
+      invoiceId = created.invoiceId;
+      invoiceNumber = created.invoiceNumber;
+      invoiceWasCreated = true;
     }
 
-    // Best-effort: fetch the invoice PDF so it can be attached to the email.
-    const invoicePdfBase64 = await fetchZohoInvoicePdfBase64(invoice.invoiceId, config, token);
+    const amountDueCents = snapshot.invoiceTotalCents ?? snapshot.finalTotalCents;
+    const alreadyPaidInZoho = bookingRow.invoice_status === "paid";
+    let invoiceStatus: "created" | "paid" = isPaid ? "paid" : "created";
+
+    if (isPaid && !alreadyPaidInZoho) {
+      // Record a full payment so the Zoho invoice shows as Paid. The booking is
+      // paid in full (upfront Paystack, or an admin-recorded offline payment).
+      const chargedAmountCents = paymentOverride?.amountCents ?? amountDueCents;
+      const markedPaid = await recordZohoInvoicePayment(
+        {
+          invoiceId,
+          contactId,
+          amountCents: chargedAmountCents,
+          reference: paymentOverride?.reference ?? snapshot.bookingReference,
+        },
+        config,
+        token,
+        paymentOverride
+          ? { paymentMode: paymentOverride.paymentMode, date: paymentOverride.date }
+          : undefined,
+      );
+      if (!markedPaid) {
+        await markZohoInvoiceAsSent(invoiceId, config, token);
+      }
+      invoiceStatus = "paid";
+    } else if (!isPaid) {
+      // Unpaid admin invoice: mark it "sent" so it leaves draft and the customer
+      // can be emailed a payment link.
+      await markZohoInvoiceAsSent(invoiceId, config, token);
+      invoiceStatus = "created";
+    }
 
     const invoiceUrl = zohoInvoiceAppUrl({
       dc: config.dc,
       organizationId: config.organizationId,
-      invoiceId: invoice.invoiceId,
+      invoiceId,
     });
 
-    await persistSyncOutcome(supabase, bookingId, {
+    const outcome: Database["public"]["Tables"]["bookings"]["Update"] = {
       zoho_contact_id: contactId,
-      zoho_invoice_id: invoice.invoiceId,
-      zoho_invoice_number: invoice.invoiceNumber,
+      zoho_invoice_id: invoiceId,
+      zoho_invoice_number: invoiceNumber,
       zoho_invoice_url: invoiceUrl,
       zoho_sync_status: "synced",
       zoho_sync_error: null,
       zoho_sync_attempts: attempts,
       zoho_synced_at: new Date().toISOString(),
-    });
+      invoice_status: invoiceStatus,
+      amount_due_cents: amountDueCents,
+    };
+    if (invoiceStatus === "created") {
+      // Unpaid invoice: nothing collected yet, so the full amount is outstanding.
+      outcome.balance_remaining_cents = amountDueCents;
+    }
+    await persistSyncOutcome(supabase, bookingId, outcome);
 
-    // Best-effort: notify the customer + accounts team that the invoice exists.
-    await notifyInvoiceCreated(supabase, {
-      customerEmail: snapshot.customerEmail,
-      customerName: snapshot.customerName,
-      invoiceNumber: invoice.invoiceNumber ?? snapshot.bookingReference,
-      serviceName: snapshot.serviceName,
-      amountCents: chargedAmountCents,
-      invoiceUrl,
-      pdfBase64: invoicePdfBase64,
-    });
+    // Only announce a freshly-created invoice (avoid re-sending on payment/retry).
+    if (invoiceWasCreated) {
+      const invoicePdfBase64 = await fetchZohoInvoicePdfBase64(invoiceId, config, token);
+      await notifyInvoiceCreated(supabase, {
+        customerEmail: snapshot.customerEmail,
+        customerName: snapshot.customerName,
+        invoiceNumber: invoiceNumber ?? snapshot.bookingReference,
+        serviceName: snapshot.serviceName,
+        amountCents: amountDueCents,
+        invoiceUrl,
+        pdfBase64: invoicePdfBase64,
+      });
+    }
 
     return {
       bookingId,
       status: "synced",
       zohoContactId: contactId,
-      zohoInvoiceId: invoice.invoiceId,
-      zohoInvoiceNumber: invoice.invoiceNumber,
+      zohoInvoiceId: invoiceId,
+      zohoInvoiceNumber: invoiceNumber,
       zohoInvoiceUrl: invoiceUrl,
+      invoiceStatus,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown Zoho sync error.";
@@ -628,6 +701,31 @@ export async function syncBookingToZohoBooks(
       zoho_sync_attempts: attempts,
     });
     return { bookingId, status: "failed", error: message };
+  }
+}
+
+/**
+ * Void a booking's Zoho invoice (best-effort) and reflect the state on the
+ * booking. Never throws.
+ */
+export async function voidZohoInvoiceForBooking(
+  supabase: Supabase,
+  bookingId: string,
+  invoiceId: string,
+): Promise<boolean> {
+  const config = getZohoConfig();
+  if (!config) return false;
+  try {
+    const token = await getZohoAccessToken(config);
+    await zohoApiRequest(config, token, `/invoices/${invoiceId}/status/void`, { method: "POST" });
+    return true;
+  } catch (error) {
+    console.error("ZOHO_INVOICE_VOID_FAILED", {
+      bookingId,
+      invoiceId,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return false;
   }
 }
 

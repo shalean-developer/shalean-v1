@@ -214,6 +214,103 @@ describe("syncBookingToZohoBooks", () => {
     expect((updates.at(-1) as Record<string, unknown>).zoho_sync_status).toBe("skipped");
   });
 
+  it("creates an UNPAID invoice (no payment) for an admin booking when allowUnpaid is set", async () => {
+    const state: BookingState = {
+      booking: paidBooking({ payment_status: "pending", booking_status: "payment_pending" }),
+      customer: { id: "cust-1", full_name: "Lebo Ndlovu", email: "lebo@example.com", phone: "+27821234567" },
+      addons: [],
+      equipment: [],
+    };
+    const { client, updates } = makeSupabaseStub(state);
+
+    const customerPaymentBodies: Array<Record<string, unknown>> = [];
+    const sentCalls: string[] = [];
+    const fetchMock = vi.fn(async (input: string | URL) => {
+      const url = String(input);
+      if (url.includes("/oauth/v2/token")) return jsonResponse({ access_token: "tok", expires_in: 3600 });
+      if (url.includes("/contacts") && !url.includes("/invoices")) {
+        if (url.includes("email=")) return jsonResponse({ code: 0, contacts: [] });
+        return jsonResponse({ code: 0, contact: { contact_id: "contact-1" } });
+      }
+      if (url.includes("/customerpayments")) {
+        customerPaymentBodies.push({});
+        return jsonResponse({ code: 0, payment: { payment_id: "pay-1" } });
+      }
+      if (url.includes("/status/sent")) {
+        sentCalls.push(url);
+        return jsonResponse({ code: 0 });
+      }
+      if (url.includes("/invoices")) return jsonResponse({ code: 0, invoice: { invoice_id: "inv-unpaid", invoice_number: "INV-900" } });
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await syncBookingToZohoBooks("1111aaaa-2222-3333-4444-555566667777", {
+      supabase: client,
+      allowUnpaid: true,
+    });
+
+    expect(result.status).toBe("synced");
+    expect(result.invoiceStatus).toBe("created");
+    expect(result.zohoInvoiceId).toBe("inv-unpaid");
+    // No payment is recorded for an unpaid invoice; it is only marked "sent".
+    expect(customerPaymentBodies).toHaveLength(0);
+    expect(sentCalls.length).toBeGreaterThan(0);
+
+    const persisted = updates.at(-1) as Record<string, unknown>;
+    expect(persisted.zoho_sync_status).toBe("synced");
+    expect(persisted.invoice_status).toBe("created");
+    expect(persisted.zoho_invoice_id).toBe("inv-unpaid");
+  });
+
+  it("records a payment against an existing unpaid invoice when the booking is later paid (no duplicate invoice)", async () => {
+    const state: BookingState = {
+      booking: paidBooking({
+        payment_status: "paid",
+        zoho_sync_status: "synced",
+        zoho_invoice_id: "inv-existing",
+        zoho_invoice_number: "INV-555",
+        zoho_contact_id: "contact-x",
+        invoice_status: "created",
+      }),
+      customer: { id: "cust-1", full_name: "Lebo", email: "lebo@example.com", phone: "+27821234567" },
+      addons: [],
+      equipment: [],
+    };
+    const { client, updates } = makeSupabaseStub(state);
+
+    const invoiceCreateCalls: string[] = [];
+    const customerPaymentBodies: Array<Record<string, unknown>> = [];
+    const fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/oauth/v2/token")) return jsonResponse({ access_token: "tok", expires_in: 3600 });
+      if (url.includes("/customerpayments")) {
+        customerPaymentBodies.push(JSON.parse(String(init?.body ?? "{}")));
+        return jsonResponse({ code: 0, payment: { payment_id: "pay-2" } });
+      }
+      if (url.includes("/invoices") && init?.method === "POST" && !url.includes("/status/")) {
+        invoiceCreateCalls.push(url);
+        return jsonResponse({ code: 0, invoice: { invoice_id: "should-not-create", invoice_number: "NOPE" } });
+      }
+      if (url.includes("/status/sent")) return jsonResponse({ code: 0 });
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await syncBookingToZohoBooks("1111aaaa-2222-3333-4444-555566667777", { supabase: client });
+
+    expect(result.status).toBe("synced");
+    expect(result.invoiceStatus).toBe("paid");
+    expect(result.zohoInvoiceId).toBe("inv-existing");
+    // The existing invoice is reused (never re-created) and the payment is recorded.
+    expect(invoiceCreateCalls).toHaveLength(0);
+    expect(customerPaymentBodies).toHaveLength(1);
+
+    const persisted = updates.at(-1) as Record<string, unknown>;
+    expect(persisted.invoice_status).toBe("paid");
+    expect(persisted.zoho_invoice_id).toBe("inv-existing");
+  });
+
   it("is idempotent for an already-synced booking (no duplicate invoice)", async () => {
     const state: BookingState = {
       booking: paidBooking({ zoho_sync_status: "synced", zoho_invoice_id: "inv-existing", zoho_contact_id: "contact-x" }),
