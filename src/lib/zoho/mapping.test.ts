@@ -1,0 +1,104 @@
+import { describe, expect, it } from "vitest";
+import {
+  buildZohoContactPayload,
+  buildZohoInvoicePayload,
+  centsToMajor,
+  type ZohoBookingSnapshot,
+} from "./mapping";
+
+function baseSnapshot(overrides: Partial<ZohoBookingSnapshot> = {}): ZohoBookingSnapshot {
+  return {
+    bookingId: "1111aaaa-2222-3333-4444-555566667777",
+    bookingReference: "SHL-1111AAAA",
+    customerName: "Thandi Mokoena",
+    customerEmail: "thandi@example.com",
+    customerPhone: "+27821234567",
+    serviceName: "Regular Cleaning",
+    bookingDate: "2026-06-01",
+    bookingTime: "08:00-12:00",
+    address: "12 Main Road",
+    suburb: "Sea Point",
+    basePriceCents: 30000,
+    addOns: [{ label: "Inside Oven", priceCents: 15000 }],
+    equipment: { label: "With Equipment", priceCents: 5000 },
+    extraCleanersTotalCents: 0,
+    finalTotalCents: 50000,
+    paymentStatus: "paid",
+    currencyCode: "ZAR",
+    ...overrides,
+  };
+}
+
+describe("centsToMajor", () => {
+  it("converts cents to two-decimal major units", () => {
+    expect(centsToMajor(50000)).toBe(500);
+    expect(centsToMajor(12345)).toBe(123.45);
+  });
+});
+
+describe("buildZohoContactPayload", () => {
+  it("splits the customer name and sets the primary contact person", () => {
+    const payload = buildZohoContactPayload(baseSnapshot());
+    expect(payload.contact_name).toBe("Thandi Mokoena");
+    expect(payload.contact_type).toBe("customer");
+    expect(payload.contact_persons[0]).toMatchObject({
+      first_name: "Thandi",
+      last_name: "Mokoena",
+      email: "thandi@example.com",
+      phone: "+27821234567",
+      is_primary_contact: true,
+    });
+  });
+
+  it("falls back to email when the name is blank", () => {
+    const payload = buildZohoContactPayload(baseSnapshot({ customerName: "  " }));
+    expect(payload.contact_name).toBe("thandi@example.com");
+    expect(payload.contact_persons[0].first_name).toBe("Customer");
+  });
+});
+
+describe("buildZohoInvoicePayload", () => {
+  it("itemizes base, add-ons and equipment with matching total", () => {
+    const payload = buildZohoInvoicePayload(baseSnapshot(), "contact-1", {
+      invoiceDate: "2026-06-02",
+    });
+
+    expect(payload.customer_id).toBe("contact-1");
+    expect(payload.reference_number).toBe("SHL-1111AAAA");
+    expect(payload.date).toBe("2026-06-02");
+    expect(payload.line_items).toHaveLength(3);
+    expect(payload.line_items[0]).toMatchObject({ name: "Regular Cleaning", rate: 300, quantity: 1 });
+    expect(payload.line_items[1]).toMatchObject({ name: "Add-on: Inside Oven", rate: 150 });
+    expect(payload.line_items[2]).toMatchObject({ name: "Equipment: With Equipment", rate: 50 });
+    // 30000 + 15000 + 5000 === 50000 final total -> no adjustment needed.
+    expect(payload.adjustment).toBeUndefined();
+  });
+
+  it("adds a negative adjustment when the booking total reflects a discount", () => {
+    const payload = buildZohoInvoicePayload(
+      baseSnapshot({ finalTotalCents: 45000 }),
+      "contact-1",
+    );
+    // Lines sum to 50000, final is 45000 -> -5000 cents discount.
+    expect(payload.adjustment).toBe(-50);
+    expect(payload.adjustment_description).toBe("Booking discount");
+  });
+
+  it("includes an extra cleaners line item when present", () => {
+    const payload = buildZohoInvoicePayload(
+      baseSnapshot({ extraCleanersTotalCents: 8000, finalTotalCents: 58000 }),
+      "contact-1",
+    );
+    const extra = payload.line_items.find((item) => item.name === "Additional cleaners");
+    expect(extra).toMatchObject({ rate: 80, quantity: 1 });
+    expect(payload.adjustment).toBeUndefined();
+  });
+
+  it("omits zero-priced equipment", () => {
+    const payload = buildZohoInvoicePayload(
+      baseSnapshot({ equipment: { label: "No Equipment", priceCents: 0 }, finalTotalCents: 45000 }),
+      "contact-1",
+    );
+    expect(payload.line_items.some((item) => item.name.startsWith("Equipment"))).toBe(false);
+  });
+});
