@@ -67,10 +67,10 @@ export function CleanerManagement({ cleaners }: { cleaners: CleanerRow[] }) {
                   <summary className="cursor-pointer font-bold text-slate-950">Edit cleaner</summary>
                   <form action={updateCleanerAction} className="mt-3 grid gap-3">
                     <input type="hidden" name="cleanerId" value={cleaner.id} />
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 [&>*]:min-w-0">
                       <AdminInput label="Full name" name="fullName" defaultValue={cleaner.full_name ?? ""} required />
                       <AdminInput label="Display name" name="displayName" defaultValue={cleaner.display_name ?? ""} required />
-                      <div className="sm:col-span-2 lg:col-span-1">
+                      <div className="min-w-0 sm:col-span-2 lg:col-span-1">
                         <CleanerPhoneField defaultValue={phone} />
                       </div>
                     </div>
