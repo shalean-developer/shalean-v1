@@ -76,14 +76,26 @@ export async function getAdminSession() {
 export async function getAdminProfileForUser(user: AuthUser) {
   let profile = await getProfileForUser(user.id);
 
-  if (!profile && user.email?.toLowerCase() === shaleanAdminEmail && isAdminRole(user.app_metadata?.role as string | undefined)) {
+  // The source of truth for admin access is the server-managed app_metadata role
+  // (set when an admin account is provisioned) plus the canonical admin email.
+  // Self-heal the profile row to "admin" whenever it is missing or has drifted
+  // to a non-admin role (e.g. overwritten to "customer" by a customer flow).
+  const appRoleIsAdmin = isAdminRole(user.app_metadata?.role as string | undefined);
+  const emailIsAdmin = user.email?.toLowerCase() === shaleanAdminEmail;
+
+  if ((appRoleIsAdmin || emailIsAdmin) && !isAdminRole(profile?.role)) {
     const admin = createSupabaseAdminClient();
-    const fullName = typeof user.user_metadata?.full_name === "string"
-      ? user.user_metadata.full_name
-      : "Shalean Cleaning Services Admin";
+    const fullName =
+      profile?.full_name ??
+      (typeof user.user_metadata?.full_name === "string"
+        ? user.user_metadata.full_name
+        : "Shalean Cleaning Services Admin");
     const profileResult = await admin
       .from("profiles")
-      .upsert({ id: user.id, role: "admin", full_name: fullName, phone: null }, { onConflict: "id" })
+      .upsert(
+        { id: user.id, role: "admin", full_name: fullName, phone: profile?.phone ?? null },
+        { onConflict: "id" },
+      )
       .select("*")
       .single();
 
@@ -215,11 +227,22 @@ export async function ensureCustomerProfile(input: {
   phone: string;
 }) {
   const supabase = createSupabaseAdminClient();
+
+  // Never downgrade a privileged profile (admin/cleaner) to customer just because
+  // that account also went through a customer flow. Preserve the existing role.
+  const existingProfile = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", input.userId)
+    .maybeSingle();
+  const existingRole = existingProfile.data?.role;
+  const role = existingRole === "admin" || existingRole === "cleaner" ? existingRole : "customer";
+
   const profileResult = await supabase
     .from("profiles")
     .upsert({
       id: input.userId,
-      role: "customer",
+      role,
       full_name: input.fullName,
       phone: input.phone,
     }, { onConflict: "id" });
