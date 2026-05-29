@@ -26,6 +26,7 @@ export function AdminBookingWizardCard({
   addons,
   equipmentOptions,
   hasActivePricingRules,
+  embedded = false,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   customers: CustomerRow[];
@@ -33,6 +34,8 @@ export function AdminBookingWizardCard({
   addons: AddonRow[];
   equipmentOptions: EquipmentRow[];
   hasActivePricingRules: boolean;
+  /** When true, omits outer card chrome (for use inside a drawer). */
+  embedded?: boolean;
 }) {
   const [step, setStep] = useState(0);
   const [customerId, setCustomerId] = useState(customers[0]?.id ?? "");
@@ -156,7 +159,7 @@ export function AdminBookingWizardCard({
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 sm:p-6">
+    <div className={cn(embedded ? "text-slate-900" : "rounded-2xl border border-slate-200 bg-white p-5 text-slate-900 sm:p-6")}>
       <div className="flex flex-wrap gap-2">
         {wizardSteps.map((label, index) => (
           <button

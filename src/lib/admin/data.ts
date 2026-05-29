@@ -273,6 +273,27 @@ export async function loadAdminPayments(status: AdminPaymentStatusFilter = "all"
   });
 }
 
+export async function loadAdminCreatedBookingIds(): Promise<Set<string>> {
+  const supabase = createSupabaseAdminClient();
+  const result = await supabase.from("admin_booking_assist_idempotency").select("result");
+  if (result.error) {
+    if (result.error.code === "42P01") return new Set();
+    throw result.error;
+  }
+
+  const ids = new Set<string>();
+  for (const row of result.data ?? []) {
+    const stored = row.result;
+    if (!stored || typeof stored !== "object") continue;
+    const bookingIds = (stored as { bookingIds?: unknown }).bookingIds;
+    if (!Array.isArray(bookingIds)) continue;
+    for (const id of bookingIds) {
+      if (typeof id === "string") ids.add(id);
+    }
+  }
+  return ids;
+}
+
 export async function loadAdminBookings(limit = 100) {
   const supabase = createSupabaseAdminClient();
   const bookingsResult = await supabase
