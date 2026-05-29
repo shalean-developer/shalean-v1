@@ -233,6 +233,44 @@ function bookingReferenceFor(bookingId: string): string {
 }
 
 /**
+ * Fetch the Zoho invoice as a PDF and return it base64-encoded. Best-effort:
+ * returns null (never throws) so a PDF fetch failure can't break invoice sync or
+ * the notification flow — the email is simply sent without an attachment.
+ */
+export async function fetchZohoInvoicePdfBase64(
+  invoiceId: string,
+  config: ZohoConfig,
+  token: string,
+): Promise<string | null> {
+  try {
+    const url = new URL(`${zohoApiBaseUrl(config.dc)}/invoices/${invoiceId}`);
+    url.searchParams.set("organization_id", config.organizationId);
+    url.searchParams.set("accept", "pdf");
+
+    const response = await fetch(url, {
+      headers: { Authorization: `Zoho-oauthtoken ${token}` },
+    });
+
+    if (!response.ok) {
+      console.error("ZOHO_INVOICE_PDF_FETCH_FAILED", { invoiceId, status: response.status });
+      return null;
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (buffer.length === 0) {
+      return null;
+    }
+    return buffer.toString("base64");
+  } catch (error) {
+    console.error("ZOHO_INVOICE_PDF_FETCH_UNEXPECTED", {
+      invoiceId,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
+/**
  * Load the booking + related rows from Supabase (the source of truth) and map
  * them into the normalized snapshot used to build Zoho payloads.
  */
@@ -360,6 +398,9 @@ export async function syncBookingToZohoBooks(
     const invoice = await createZohoInvoice(snapshot, contactId, config, token);
     await markZohoInvoiceAsSent(invoice.invoiceId, config, token);
 
+    // Best-effort: fetch the invoice PDF so it can be attached to the email.
+    const invoicePdfBase64 = await fetchZohoInvoicePdfBase64(invoice.invoiceId, config, token);
+
     const invoiceUrl = zohoInvoiceAppUrl({
       dc: config.dc,
       organizationId: config.organizationId,
@@ -385,6 +426,7 @@ export async function syncBookingToZohoBooks(
       serviceName: snapshot.serviceName,
       amountCents: snapshot.finalTotalCents,
       invoiceUrl,
+      pdfBase64: invoicePdfBase64,
     });
 
     return {

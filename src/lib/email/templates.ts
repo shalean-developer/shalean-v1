@@ -166,15 +166,34 @@ export function InvoiceCreatedEmail(data: InvoiceCreatedData): EmailContent {
     { label: "Amount", value: money(data.amountCents) },
     { label: "Due date", value: data.dueDate ?? "" },
   ];
+  const callout = renderInvoiceCallout(data.invoiceNumber, money(data.amountCents));
   const button = data.invoiceUrl ? renderButton("View invoice", data.invoiceUrl) : "";
   const body = section(rows, button);
   const layout = renderEmailLayout({
     heading: "Your invoice is ready",
-    intro: `Hi ${data.customerName}, your invoice for ${data.serviceName} has been created.`,
-    bodyHtml: body.html,
-    bodyText: body.text,
+    intro: `Hi ${data.customerName}, invoice ${data.invoiceNumber} for ${data.serviceName} has been created. Your PDF invoice is attached.`,
+    bodyHtml: `${callout}${body.html}`,
+    bodyText: `Invoice number: ${data.invoiceNumber}\n${body.text}`,
   });
   return { subject: `Invoice ${data.invoiceNumber} from ${shaleanBrand.shortName}`, ...layout };
+}
+
+function renderInvoiceCallout(invoiceNumber: string, amount: string): string {
+  const { colors } = shaleanBrand;
+  const safeNumber = invoiceNumber
+    .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  const safeAmount = amount
+    .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;border-collapse:separate;">
+      <tr>
+        <td style="padding:16px 18px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;">
+          <p style="margin:0;font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:${colors.brandDark};font-weight:700;">Invoice number</p>
+          <p style="margin:4px 0 0;font-size:22px;font-weight:800;color:${colors.text};">${safeNumber}</p>
+          ${safeAmount ? `<p style="margin:6px 0 0;font-size:14px;color:${colors.muted};">Amount due: <span style="color:${colors.text};font-weight:700;">${safeAmount}</span></p>` : ""}
+        </td>
+      </tr>
+    </table>`;
 }
 
 export function PaymentReceivedEmail(data: PaymentReceivedData): EmailContent {

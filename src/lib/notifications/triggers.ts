@@ -231,9 +231,20 @@ export async function notifyInvoiceCreated(
     amountCents: number;
     invoiceUrl?: string | null;
     dueDate?: string | null;
+    /** Base64-encoded invoice PDF, attached to the email when present. */
+    pdfBase64?: string | null;
   },
 ): Promise<void> {
   const addresses = getEmailAddresses();
+  const attachments = args.pdfBase64
+    ? [
+        {
+          filename: `Invoice-${args.invoiceNumber}.pdf`.replace(/[^A-Za-z0-9._-]/g, "_"),
+          content: args.pdfBase64,
+          contentType: "application/pdf",
+        },
+      ]
+    : undefined;
 
   await safe("invoice_created", async () => {
     if (args.customerEmail) {
@@ -241,6 +252,7 @@ export async function notifyInvoiceCreated(
         type: "invoice_created",
         to: args.customerEmail,
         replyTo: addresses.accounts,
+        attachments,
         data: {
           customerName: args.customerName,
           invoiceNumber: args.invoiceNumber,
@@ -255,6 +267,7 @@ export async function notifyInvoiceCreated(
     await enqueueNotification(supabase, {
       type: "admin_invoice_created",
       to: addresses.accounts,
+      attachments,
       data: {
         customerName: args.customerName,
         invoiceNumber: args.invoiceNumber,
