@@ -104,6 +104,55 @@ describe("buildZohoInvoicePayload", () => {
   });
 });
 
+describe("buildZohoInvoicePayload with full breakdown", () => {
+  it("itemizes bedrooms, bathrooms and every breakdown line", () => {
+    const payload = buildZohoInvoicePayload(
+      baseSnapshot({
+        bedrooms: 2,
+        bathrooms: 1,
+        propertyType: "house",
+        frequency: "once",
+        finalTotalCents: 50000,
+        invoiceTotalCents: 50000,
+        breakdownLines: [
+          { label: "Regular Cleaning", amountCents: 30000, category: "base" },
+          { label: "2 bedroom allocation", amountCents: 12000, category: "rooms" },
+          { label: "1 bathroom allocation", amountCents: 8000, category: "rooms" },
+        ],
+      }),
+      "contact-1",
+      { invoiceDate: "2026-06-02" },
+    );
+
+    expect(payload.line_items).toHaveLength(3);
+    expect(payload.line_items[1]).toMatchObject({ name: "2 bedroom allocation", rate: 120 });
+    expect(payload.line_items[2]).toMatchObject({ name: "1 bathroom allocation", rate: 80 });
+    // Line sum equals the charged total -> no adjustment.
+    expect(payload.adjustment).toBeUndefined();
+    expect(payload.notes).toContain("Bedrooms: 2");
+    expect(payload.notes).toContain("Bathrooms: 1");
+    expect(payload.notes).toContain("Property type: house");
+  });
+
+  it("records the frequency discount as a negative adjustment for recurring bookings", () => {
+    const payload = buildZohoInvoicePayload(
+      baseSnapshot({
+        frequency: "weekly",
+        finalTotalCents: 50000,
+        invoiceTotalCents: 45000,
+        breakdownLines: [{ label: "Regular Cleaning", amountCents: 50000, category: "base" }],
+      }),
+      "contact-1",
+    );
+
+    // 45000 charged - 50000 line total => -5000 cents (-50.00) discount.
+    expect(payload.adjustment).toBe(-50);
+    expect(payload.adjustment_description).toBe("Frequency discount (Weekly)");
+    expect(payload.notes).toContain("Frequency: Weekly");
+    expect(payload.notes).toContain("Frequency discount: -50.00");
+  });
+});
+
 describe("buildZohoPaymentPayload", () => {
   it("applies the full amount to the invoice to mark it paid", () => {
     const payload = buildZohoPaymentPayload({
