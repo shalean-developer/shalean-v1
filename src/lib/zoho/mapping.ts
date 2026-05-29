@@ -55,6 +55,16 @@ export type ZohoInvoicePayload = {
   adjustment_description?: string;
 };
 
+export type ZohoPaymentPayload = {
+  customer_id: string;
+  payment_mode: string;
+  amount: number;
+  date: string;
+  reference_number: string;
+  invoices: Array<{ invoice_id: string; amount_applied: number }>;
+  account_id?: string;
+};
+
 export function centsToMajor(cents: number): number {
   return Math.round(cents) / 100;
 }
@@ -153,6 +163,38 @@ export function buildZohoInvoicePayload(
     payload.adjustment = centsToMajor(adjustmentCents);
     payload.adjustment_description =
       adjustmentCents < 0 ? "Booking discount" : "Booking adjustment";
+  }
+
+  return payload;
+}
+
+/**
+ * Build the Zoho Books "customer payment" payload used to mark an invoice as
+ * fully paid. The amount is applied in full to the single invoice, mirroring the
+ * upfront Paystack payment that gates the booking.
+ */
+export function buildZohoPaymentPayload(args: {
+  contactId: string;
+  invoiceId: string;
+  amountCents: number;
+  reference: string;
+  date: string;
+  paymentMode: string;
+  accountId?: string | null;
+}): ZohoPaymentPayload {
+  const amount = centsToMajor(args.amountCents);
+
+  const payload: ZohoPaymentPayload = {
+    customer_id: args.contactId,
+    payment_mode: args.paymentMode,
+    amount,
+    date: args.date,
+    reference_number: args.reference,
+    invoices: [{ invoice_id: args.invoiceId, amount_applied: amount }],
+  };
+
+  if (args.accountId) {
+    payload.account_id = args.accountId;
   }
 
   return payload;

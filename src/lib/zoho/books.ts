@@ -25,6 +25,8 @@ import {
 import {
   buildZohoContactPayload,
   buildZohoInvoicePayload,
+  buildZohoPaymentPayload,
+  centsToMajor,
   type ZohoBookingLineItem,
   type ZohoBookingSnapshot,
 } from "./mapping";
@@ -201,6 +203,92 @@ export async function createZohoInvoice(
   }
 
   return { invoiceId, invoiceNumber: created.invoice?.invoice_number ?? null };
+}
+
+// In-memory cache for the resolved "deposit to" account used for payments.
+// undefined = not resolved yet, null = resolved but none found.
+let cachedDepositAccountId: string | null | undefined;
+
+/**
+ * Resolve the Zoho "deposit to" account for recording payments. Uses
+ * ZOHO_PAYMENT_ACCOUNT_ID when set, otherwise discovers the first active bank
+ * account. Best-effort: returns undefined when none can be resolved.
+ */
+async function resolveZohoDepositAccountId(
+  config: ZohoConfig,
+  token: string,
+): Promise<string | undefined> {
+  const override = process.env.ZOHO_PAYMENT_ACCOUNT_ID?.trim();
+  if (override) {
+    return override;
+  }
+  if (cachedDepositAccountId !== undefined) {
+    return cachedDepositAccountId ?? undefined;
+  }
+  try {
+    const result = await zohoApiRequest<{
+      chartofaccounts?: Array<{ account_id: string; is_active?: boolean }>;
+    }>(config, token, "/chartofaccounts", {
+      method: "GET",
+      searchParams: { filter_by: "AccountType.Bank" },
+    });
+    const account =
+      result.chartofaccounts?.find((row) => row.is_active !== false) ?? result.chartofaccounts?.[0];
+    cachedDepositAccountId = account?.account_id ?? null;
+  } catch (error) {
+    console.error("ZOHO_DEPOSIT_ACCOUNT_LOOKUP_FAILED", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    cachedDepositAccountId = null;
+  }
+  return cachedDepositAccountId ?? undefined;
+}
+
+/**
+ * Record a full payment against a Zoho invoice so it shows as Paid. The booking
+ * is already paid upfront via Paystack, so the whole amount is applied to the
+ * invoice. Best-effort: returns false instead of throwing so it never blocks a
+ * sync — the invoice still exists, just not marked paid.
+ */
+export async function recordZohoInvoicePayment(
+  input: { invoiceId: string; contactId: string; amountCents: number; reference: string },
+  config?: ZohoConfig,
+  token?: string,
+): Promise<boolean> {
+  const resolved = config ?? getZohoConfig();
+  if (!resolved) {
+    return false;
+  }
+  const amount = centsToMajor(input.amountCents);
+  if (!(amount > 0)) {
+    return false;
+  }
+
+  try {
+    const accessToken = token ?? (await getZohoAccessToken(resolved));
+    const accountId = await resolveZohoDepositAccountId(resolved, accessToken);
+    const payload = buildZohoPaymentPayload({
+      contactId: input.contactId,
+      invoiceId: input.invoiceId,
+      amountCents: input.amountCents,
+      reference: input.reference,
+      date: new Date().toISOString().slice(0, 10),
+      paymentMode: process.env.ZOHO_PAYMENT_MODE?.trim() || "banktransfer",
+      accountId,
+    });
+
+    await zohoApiRequest(resolved, accessToken, "/customerpayments", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return true;
+  } catch (error) {
+    console.error("ZOHO_INVOICE_PAYMENT_FAILED", {
+      invoiceId: input.invoiceId,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
 }
 
 /**
@@ -396,7 +484,22 @@ export async function syncBookingToZohoBooks(
     const contactId =
       bookingRow.zoho_contact_id ?? (await createOrFindZohoCustomer(snapshot, config, token));
     const invoice = await createZohoInvoice(snapshot, contactId, config, token);
-    await markZohoInvoiceAsSent(invoice.invoiceId, config, token);
+
+    // The booking is paid upfront via Paystack — record a full payment so the
+    // Zoho invoice is marked Paid. If that fails, at least mark it as sent.
+    const markedPaid = await recordZohoInvoicePayment(
+      {
+        invoiceId: invoice.invoiceId,
+        contactId,
+        amountCents: snapshot.finalTotalCents,
+        reference: snapshot.bookingReference,
+      },
+      config,
+      token,
+    );
+    if (!markedPaid) {
+      await markZohoInvoiceAsSent(invoice.invoiceId, config, token);
+    }
 
     // Best-effort: fetch the invoice PDF so it can be attached to the email.
     const invoicePdfBase64 = await fetchZohoInvoicePdfBase64(invoice.invoiceId, config, token);
