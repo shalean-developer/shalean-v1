@@ -13,6 +13,36 @@ function isUniqueViolation(error: { code?: string; message?: string } | null) {
   return error?.code === "23505" || /duplicate key/i.test(error?.message ?? "");
 }
 
+function isMissingRelationError(error: { code?: string; message?: string } | null) {
+  return error?.code === "42P01" || /does not exist/i.test(error?.message ?? "");
+}
+
+function parseStoredOutcome(result: Json): AdminBookingIdempotencyResult | null {
+  if (!result || typeof result !== "object") {
+    return null;
+  }
+
+  const stored = result as Record<string, unknown>;
+  const bookingIds = Array.isArray(stored.bookingIds)
+    ? stored.bookingIds.filter((id): id is string => typeof id === "string")
+    : [];
+  if (bookingIds.length === 0) {
+    return null;
+  }
+
+  const bookingReferences = Array.isArray(stored.bookingReferences)
+    ? stored.bookingReferences.filter((ref): ref is string => typeof ref === "string")
+    : [];
+
+  return {
+    bookingIds,
+    bookingReferences,
+    primaryBookingId: typeof stored.primaryBookingId === "string"
+      ? stored.primaryBookingId
+      : bookingIds[0]!,
+  };
+}
+
 export async function loadBookingIdsForIdempotencyKey(
   supabase: Supabase,
   idempotencyKey: string,
@@ -51,30 +81,32 @@ export async function readAdminBookingIdempotencyOutcome(
     .eq("idempotency_key", idempotencyKey)
     .maybeSingle();
 
-  if (result.error) throw result.error;
-  if (!result.data?.result || typeof result.data.result !== "object") {
+  if (result.error) {
+    if (isMissingRelationError(result.error)) {
+      return null;
+    }
+    throw result.error;
+  }
+
+  if (!result.data?.result) {
     return null;
   }
 
-  const stored = result.data.result as Record<string, unknown>;
-  const bookingIds = Array.isArray(stored.bookingIds)
-    ? stored.bookingIds.filter((id): id is string => typeof id === "string")
-    : [];
-  if (bookingIds.length === 0) {
-    return null;
+  return parseStoredOutcome(result.data.result);
+}
+
+export async function clearAdminBookingIdempotencyClaim(
+  supabase: Supabase,
+  idempotencyKey: string,
+): Promise<void> {
+  const result = await supabase
+    .from("admin_booking_assist_idempotency")
+    .delete()
+    .eq("idempotency_key", idempotencyKey);
+
+  if (result.error && !isMissingRelationError(result.error)) {
+    throw result.error;
   }
-
-  const bookingReferences = Array.isArray(stored.bookingReferences)
-    ? stored.bookingReferences.filter((ref): ref is string => typeof ref === "string")
-    : [];
-
-  return {
-    bookingIds,
-    bookingReferences,
-    primaryBookingId: typeof stored.primaryBookingId === "string"
-      ? stored.primaryBookingId
-      : bookingIds[0]!,
-  };
 }
 
 export async function persistAdminBookingIdempotencyOutcome(
@@ -100,8 +132,13 @@ export async function persistAdminBookingIdempotencyOutcome(
     result,
   });
 
-  if (upsert.error && !isUniqueViolation(upsert.error)) {
-    throw upsert.error;
+  if (upsert.error) {
+    if (isMissingRelationError(upsert.error)) {
+      return;
+    }
+    if (!isUniqueViolation(upsert.error)) {
+      throw upsert.error;
+    }
   }
 }
 
@@ -132,16 +169,26 @@ export async function claimAdminBookingCreation(
   });
 
   if (claim.error) {
+    if (isMissingRelationError(claim.error)) {
+      return { status: "create" };
+    }
+
     if (isUniqueViolation(claim.error)) {
       const raced = await loadBookingIdsForIdempotencyKey(supabase, input.idempotencyKey);
       if (raced) {
         return { status: "reused", outcome: raced };
       }
+
       const stored = await readAdminBookingIdempotencyOutcome(supabase, input.idempotencyKey);
       if (stored) {
         return { status: "reused", outcome: stored };
       }
+
+      // Orphaned in_progress row from a failed prior submit — clear and allow retry.
+      await clearAdminBookingIdempotencyClaim(supabase, input.idempotencyKey);
+      return { status: "create" };
     }
+
     throw claim.error;
   }
 

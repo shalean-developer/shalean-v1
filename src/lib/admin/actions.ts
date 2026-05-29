@@ -28,6 +28,7 @@ import { syncBookingToZohoBooks } from "@/lib/zoho/books";
 import { ADMIN_BOOKING_ASSIST_ACTIONS, logAdminBookingAssistAudit } from "@/lib/admin/audit";
 import {
   claimAdminBookingCreation,
+  clearAdminBookingIdempotencyClaim,
   loadBookingIdsForIdempotencyKey,
   persistAdminBookingIdempotencyOutcome,
 } from "@/lib/admin/booking-idempotency";
@@ -479,6 +480,7 @@ export async function createAdminBookingAction(formData: FormData) {
               }
               shouldRevalidate = true;
             } else {
+              await clearAdminBookingIdempotencyClaim(supabase, idempotencyKey).catch(() => undefined);
               throw error;
             }
           }
@@ -486,34 +488,42 @@ export async function createAdminBookingAction(formData: FormData) {
           if (bookingIds.length > 0) {
             const idempotencyOutcome = await loadBookingIdsForIdempotencyKey(supabase, idempotencyKey);
             if (idempotencyOutcome) {
-              await persistAdminBookingIdempotencyOutcome(supabase, {
-                idempotencyKey,
-                adminProfileId: profile.id,
-                customerId,
-                outcome: idempotencyOutcome,
-              });
+              try {
+                await persistAdminBookingIdempotencyOutcome(supabase, {
+                  idempotencyKey,
+                  adminProfileId: profile.id,
+                  customerId,
+                  outcome: idempotencyOutcome,
+                });
 
-              const primaryReference = idempotencyOutcome.bookingReferences[0] ?? null;
-              console.info("ADMIN_BOOKING_CREATED", {
-                booking_reference: primaryReference,
-                idempotency_key: idempotencyKey,
-                admin_user_id: profile.id,
-                booking_ids: idempotencyOutcome.bookingIds,
-                created_at: new Date().toISOString(),
-              });
-
-              await logAdminBookingAssistAudit(supabase, {
-                adminProfileId: profile.id,
-                customerId,
-                bookingId: idempotencyOutcome.primaryBookingId,
-                action: ADMIN_BOOKING_ASSIST_ACTIONS.bookingCreated,
-                idempotencyKey,
-                payload: {
+                const primaryReference = idempotencyOutcome.bookingReferences[0] ?? null;
+                console.info("ADMIN_BOOKING_CREATED", {
+                  booking_reference: primaryReference,
+                  idempotency_key: idempotencyKey,
+                  admin_user_id: profile.id,
                   booking_ids: idempotencyOutcome.bookingIds,
-                  booking_references: idempotencyOutcome.bookingReferences,
-                  occurrence_count: idempotencyOutcome.bookingIds.length,
-                },
-              });
+                  created_at: new Date().toISOString(),
+                });
+
+                await logAdminBookingAssistAudit(supabase, {
+                  adminProfileId: profile.id,
+                  customerId,
+                  bookingId: idempotencyOutcome.primaryBookingId,
+                  action: ADMIN_BOOKING_ASSIST_ACTIONS.bookingCreated,
+                  idempotencyKey,
+                  payload: {
+                    booking_ids: idempotencyOutcome.bookingIds,
+                    booking_references: idempotencyOutcome.bookingReferences,
+                    occurrence_count: idempotencyOutcome.bookingIds.length,
+                  },
+                });
+              } catch (auditError) {
+                console.error("ADMIN_BOOKING_POST_CREATE_AUDIT_FAILED", {
+                  idempotencyKey,
+                  bookingIds: idempotencyOutcome.bookingIds,
+                  error: auditError,
+                });
+              }
             }
 
             // Issue an unpaid Zoho invoice + Paystack payment link for the new booking.
@@ -529,12 +539,21 @@ export async function createAdminBookingAction(formData: FormData) {
       }
     }
   } catch (error) {
+    const failedIdempotencyKey = optionalString(formData, "idempotencyKey");
+    if (failedIdempotencyKey) {
+      await clearAdminBookingIdempotencyClaim(supabase, failedIdempotencyKey).catch(() => undefined);
+    }
+
     if (error instanceof PreferredCleanerUnavailableError) {
       redirectTo = "/admin/bookings?error=cleaner-unavailable";
     } else if (error instanceof Error && isRegularCleaningCatalogConfigurationError(error.message)) {
       redirectTo = "/admin/bookings?error=catalog-config";
     } else {
-      console.error("ADMIN_BOOKING_CREATE_FAILED", error);
+      console.error("ADMIN_BOOKING_CREATE_FAILED", {
+        idempotencyKey: failedIdempotencyKey,
+        message: formatAdminBookingCreateError(error),
+        error,
+      });
       redirectTo = "/admin/bookings?error=create-failed";
     }
   }
@@ -862,7 +881,18 @@ function isRegularCleaningCatalogConfigurationError(message: string) {
     message === "Regular Cleaning equipment options are not configured" ||
     message === "Regular Cleaning service pricing is not configured" ||
     message.startsWith("Regular Cleaning pricing rule is not configured: ") ||
-    message.startsWith("Regular Cleaning recurring pricing is not configured for ");
+    message.startsWith("Regular Cleaning recurring pricing is not configured for ") ||
+    /^Regular Cleaning recurring pricing is not configured/.test(message);
+}
+
+function formatAdminBookingCreateError(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
+    return error.message;
+  }
+  return "Unknown error";
 }
 
 function clampInt(value: number, min: number, max: number) {

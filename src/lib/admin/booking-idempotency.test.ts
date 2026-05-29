@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   claimAdminBookingCreation,
+  clearAdminBookingIdempotencyClaim,
   loadBookingIdsForIdempotencyKey,
 } from "./booking-idempotency";
 
@@ -12,7 +13,7 @@ function makeSupabaseStub(state: {
   return {
     from(table: string) {
       const filters: Record<string, string> = {};
-      let op: "select" | "insert" | "upsert" = "select";
+      let op: "select" | "insert" | "upsert" | "delete" = "select";
       let payload: Record<string, unknown> | null = null;
 
       const builder: Record<string, unknown> = {
@@ -25,6 +26,10 @@ function makeSupabaseStub(state: {
         upsert: (value: Record<string, unknown>) => {
           op = "upsert";
           payload = value;
+          return builder;
+        },
+        delete: () => {
+          op = "delete";
           return builder;
         },
         eq: (column: string, value: string) => {
@@ -44,11 +49,16 @@ function makeSupabaseStub(state: {
           }
           if (table === "admin_booking_assist_idempotency" && op === "select") {
             const row = state.idempotencyRows.get(filters.idempotency_key ?? "");
-            return { data: row ?? null, error: null };
+            return { data: row ? { result: row } : null, error: null };
           }
           return { data: null, error: null };
         },
         then: (onF: (value: unknown) => unknown) => {
+          if (table === "admin_booking_assist_idempotency" && op === "delete") {
+            const key = filters.idempotency_key ?? "";
+            state.idempotencyRows.delete(key);
+            return Promise.resolve({ data: null, error: null }).then(onF);
+          }
           if (table === "bookings" && op === "select") {
             const matched = filters.idempotency_key
               ? state.bookings
@@ -125,5 +135,40 @@ describe("claimAdminBookingCreation", () => {
 
     expect(claim.status).toBe("create");
     expect(rows.has("idem-new")).toBe(true);
+  });
+
+  it("clears an orphaned in_progress claim and allows a retry", async () => {
+    const rows = new Map<string, Record<string, unknown>>([
+      ["idem-orphan", { status: "in_progress" }],
+    ]);
+    const supabase = makeSupabaseStub({
+      bookings: [],
+      idempotencyRows: rows,
+    });
+
+    const claim = await claimAdminBookingCreation(supabase, {
+      idempotencyKey: "idem-orphan",
+      adminProfileId: "admin-1",
+      customerId: "cust-1",
+    });
+
+    expect(claim.status).toBe("create");
+    expect(rows.has("idem-orphan")).toBe(false);
+  });
+});
+
+describe("clearAdminBookingIdempotencyClaim", () => {
+  it("ignores missing relation errors", async () => {
+    const supabase = {
+      from() {
+        return {
+          delete: () => ({
+            eq: () => Promise.resolve({ error: { code: "42P01", message: "does not exist" } }),
+          }),
+        };
+      },
+    } as never;
+
+    await expect(clearAdminBookingIdempotencyClaim(supabase, "key")).resolves.toBeUndefined();
   });
 });
