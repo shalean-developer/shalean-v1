@@ -7,7 +7,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/supabase/database.types";
-import { sendEmail, isResendConfigured, type SendEmailInput, type SendEmailResult } from "@/lib/email/client";
+import { sendEmail, isResendConfigured, type EmailAttachment, type SendEmailInput, type SendEmailResult } from "@/lib/email/client";
 import { isNotificationType, renderNotification, type NotificationType } from "@/lib/email/templates";
 
 type Supabase = SupabaseClient<Database>;
@@ -24,6 +24,7 @@ export type NotificationPayload = {
   data: Record<string, unknown>;
   from?: string;
   replyTo?: string;
+  attachments?: EmailAttachment[];
 };
 
 export type EnqueueNotificationInput = {
@@ -32,6 +33,7 @@ export type EnqueueNotificationInput = {
   data: Record<string, unknown>;
   from?: string;
   replyTo?: string;
+  attachments?: EmailAttachment[];
 };
 
 /**
@@ -67,6 +69,7 @@ export async function enqueueNotification(
     data: input.data,
     ...(input.from ? { from: input.from } : {}),
     ...(input.replyTo ? { replyTo: input.replyTo } : {}),
+    ...(input.attachments && input.attachments.length > 0 ? { attachments: input.attachments } : {}),
   };
 
   try {
@@ -248,6 +251,7 @@ async function deliverRow(
     text: content.text,
     from: payload.from,
     replyTo: payload.replyTo,
+    attachments: payload.attachments,
   });
 
   if (result.ok && "skipped" in result) {
@@ -273,7 +277,27 @@ function parsePayload(payload: Json): NotificationPayload | null {
     data: data && typeof data === "object" && !Array.isArray(data) ? (data as Record<string, unknown>) : {},
     from: typeof record.from === "string" ? record.from : undefined,
     replyTo: typeof record.replyTo === "string" ? record.replyTo : undefined,
+    attachments: parseAttachments(record.attachments),
   };
+}
+
+function parseAttachments(value: unknown): EmailAttachment[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const attachments = value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const record = item as Record<string, unknown>;
+    if (typeof record.filename !== "string" || typeof record.content !== "string") return [];
+    return [
+      {
+        filename: record.filename,
+        content: record.content,
+        ...(typeof record.contentType === "string" ? { contentType: record.contentType } : {}),
+      } satisfies EmailAttachment,
+    ];
+  });
+  return attachments.length > 0 ? attachments : undefined;
 }
 
 async function reclaimStuckRows(supabase: Supabase, now: Date): Promise<number> {

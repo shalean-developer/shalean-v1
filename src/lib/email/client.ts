@@ -47,6 +47,13 @@ function getResendClient(): Resend | null {
   return cachedClient;
 }
 
+export type EmailAttachment = {
+  filename: string;
+  /** Base64-encoded file contents. */
+  content: string;
+  contentType?: string;
+};
+
 export type SendEmailInput = {
   to: string;
   subject: string;
@@ -54,6 +61,7 @@ export type SendEmailInput = {
   text: string;
   from?: string;
   replyTo?: string;
+  attachments?: EmailAttachment[];
 };
 
 export type SendEmailResult =
@@ -76,6 +84,8 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
 
   const from = input.from?.trim() || getEmailAddresses().from;
 
+  const attachments = input.attachments?.filter((a) => a.filename && a.content) ?? [];
+
   try {
     const result = await client.emails.send({
       from,
@@ -84,6 +94,15 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
       html: input.html,
       text: input.text,
       ...(input.replyTo ? { replyTo: input.replyTo } : {}),
+      ...(attachments.length > 0
+        ? {
+            attachments: attachments.map((a) => ({
+              filename: a.filename,
+              content: a.content,
+              ...(a.contentType ? { contentType: a.contentType } : {}),
+            })),
+          }
+        : {}),
     });
 
     if (result.error) {
