@@ -26,6 +26,19 @@ import { REGULAR_CLEANING_SLUG } from "@/lib/regular-cleaning/types";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 import { syncBookingToZohoBooks } from "@/lib/zoho/books";
+import {
+  checkBookingPaymentStatus,
+  createUnpaidInvoiceForBooking,
+  ensurePaystackPaymentLink,
+  isAdminPaymentMethod,
+  markBookingPaidManually,
+  markBookingUnpaid,
+  provisionAdminBookingBilling,
+  recordManualBookingPayment,
+  sendPaymentLinkToCustomer,
+  voidBookingInvoice,
+  type AdminPaymentMethod,
+} from "@/lib/admin/billing";
 
 type SupabaseAdmin = ReturnType<typeof createSupabaseAdminClient>;
 type AdminRole = "customer" | "cleaner" | "admin";
@@ -356,6 +369,25 @@ export async function createAdminBookingAction(formData: FormData) {
 
   if (customerResult.error) throw customerResult.error;
 
+  // Stable per-submit idempotency key from the client. A double-submit replays
+  // the same key, so we reuse the already-created booking instead of inserting a
+  // duplicate. Falls back to a fresh UUID if the client did not supply one.
+  const idempotencyKey = optionalString(formData, "idempotencyKey") ?? randomUUID();
+
+  // If this exact submit already produced a booking, don't create another one.
+  const existing = await supabase
+    .from("bookings")
+    .select("id")
+    .eq("idempotency_key", idempotencyKey)
+    .order("occurrence_index", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (existing.error) throw existing.error;
+  if (existing.data) {
+    revalidateAdmin();
+    redirect("/admin/bookings?success=booking-created");
+  }
+
   const frequency = requiredString(formData, "frequency") as RegularCleaningBookingInput["frequency"];
   const bookingDate = requiredString(formData, "bookingDate");
   const selectedWeekdays = weekdayList(formData, "recurrenceWeekdays");
@@ -365,7 +397,8 @@ export async function createAdminBookingAction(formData: FormData) {
   }
   const selectedCleanerId = selectedCleanerChoice === AUTO_ASSIGN_SENTINEL ? null : selectedCleanerChoice;
   const bookingInput: RegularCleaningBookingInput = {
-    checkoutId: randomUUID(),
+    checkoutId: idempotencyKey,
+    idempotencyKey,
     serviceSlug: REGULAR_CLEANING_SLUG,
     frequency,
     recurrenceWeekdays: frequency === "monthly"
@@ -398,9 +431,17 @@ export async function createAdminBookingAction(formData: FormData) {
     await makeCleanerEligibleForAdminBooking(supabase, selectedCleanerId, bookingInput.suburb);
   }
 
+  let bookingIds: string[] = [];
   try {
-    await createRegularCleaningBooking(supabase, bookingInput, customerId);
+    const created = await createRegularCleaningBooking(supabase, bookingInput, customerId);
+    bookingIds = created.bookingIds;
   } catch (error) {
+    // A unique-constraint violation means a concurrent double-submit already
+    // created this booking — treat it as success rather than a duplicate.
+    if (error instanceof Error && /duplicate key|23505/.test(error.message)) {
+      revalidateAdmin();
+      redirect("/admin/bookings?success=booking-created");
+    }
     if (error instanceof PreferredCleanerUnavailableError) {
       redirect("/admin/bookings?error=cleaner-unavailable");
     }
@@ -411,15 +452,25 @@ export async function createAdminBookingAction(formData: FormData) {
     redirect("/admin/bookings?error=create-failed");
   }
 
+  // Issue an unpaid Zoho invoice + Paystack payment link for the new booking.
+  // Best-effort: never blocks booking creation. Failures are visible/retryable
+  // from the booking row actions.
+  const provision = await provisionAdminBookingBilling(supabase, bookingIds);
+
   revalidateAdmin();
-  redirect("/admin/bookings?success=booking-created");
+  const outcome = provision.invoiceStatus === "synced" && provision.paymentLinkOk
+    ? "booking-billed"
+    : "booking-created";
+  redirect(`/admin/bookings?success=${outcome}`);
 }
 
 export async function retryZohoSyncAction(formData: FormData) {
   await requireAdmin();
   const bookingId = requiredString(formData, "bookingId");
 
-  const result = await syncBookingToZohoBooks(bookingId, { force: true });
+  // Admin retry must work for unpaid admin bookings too: create/repair the
+  // invoice without requiring payment, and never create a duplicate invoice.
+  const result = await syncBookingToZohoBooks(bookingId, { force: true, allowUnpaid: true });
 
   revalidatePath("/admin/bookings");
   revalidatePath("/admin/payments");
@@ -430,6 +481,106 @@ export async function retryZohoSyncAction(formData: FormData) {
       ? "zoho-skipped"
       : "zoho-failed";
   redirect(`/admin/bookings?success=${status}`);
+}
+
+export async function createInvoiceAction(formData: FormData) {
+  await requireAdmin();
+  const bookingId = requiredString(formData, "bookingId");
+  const result = await createUnpaidInvoiceForBooking(createSupabaseAdminClient(), bookingId);
+  revalidatePath("/admin/bookings");
+  const status = result.status === "synced"
+    ? "invoice-created"
+    : result.status === "skipped"
+      ? "zoho-skipped"
+      : "zoho-failed";
+  redirect(`/admin/bookings?success=${status}`);
+}
+
+export async function sendPaymentLinkAction(formData: FormData) {
+  await requireAdmin();
+  const bookingId = requiredString(formData, "bookingId");
+  const result = await sendPaymentLinkToCustomer(createSupabaseAdminClient(), bookingId);
+  revalidatePath("/admin/bookings");
+  redirect(`/admin/bookings?success=${result.ok ? "link-sent" : "link-failed"}`);
+}
+
+export async function ensurePaymentLinkAction(formData: FormData) {
+  await requireAdmin();
+  const bookingId = requiredString(formData, "bookingId");
+  const result = await ensurePaystackPaymentLink(createSupabaseAdminClient(), bookingId);
+  revalidatePath("/admin/bookings");
+  redirect(`/admin/bookings?success=${result.ok ? "link-ready" : "link-failed"}`);
+}
+
+export async function checkPaymentStatusAction(formData: FormData) {
+  await requireAdmin();
+  const bookingId = requiredString(formData, "bookingId");
+  const result = await checkBookingPaymentStatus(createSupabaseAdminClient(), bookingId);
+  revalidatePath("/admin/bookings");
+  revalidatePath("/admin/payments");
+  const status = result.reconciled ? "payment-confirmed" : result.ok ? "payment-pending" : "payment-check-failed";
+  redirect(`/admin/bookings?success=${status}`);
+}
+
+export async function recordManualPaymentAction(formData: FormData) {
+  const { profile } = await requireAdmin();
+  const bookingId = requiredString(formData, "bookingId");
+  const methodRaw = requiredString(formData, "paymentMethod");
+  if (!isAdminPaymentMethod(methodRaw)) {
+    redirect("/admin/bookings?error=payment-method-invalid");
+  }
+  const method = methodRaw as AdminPaymentMethod;
+  const amountCents = randToCents(formData, "amount", "Amount paid");
+  const paymentDate = requiredString(formData, "paymentDate");
+  const reference = optionalString(formData, "reference");
+  const notes = optionalString(formData, "notes");
+  const sendConfirmation = formData.get("sendConfirmation") === "on";
+
+  const result = await recordManualBookingPayment(createSupabaseAdminClient(), {
+    bookingId,
+    adminProfileId: profile.id,
+    adminName: profile.full_name ?? "Admin",
+    amountCents,
+    method,
+    paymentDate,
+    reference,
+    notes,
+    sendConfirmation,
+  });
+
+  revalidatePath("/admin/bookings");
+  revalidatePath("/admin/payments");
+  redirect(`/admin/bookings?success=${result.ok ? "payment-recorded" : "payment-record-failed"}`);
+}
+
+export async function markBookingPaidAction(formData: FormData) {
+  const { profile } = await requireAdmin();
+  const bookingId = requiredString(formData, "bookingId");
+  const result = await markBookingPaidManually(createSupabaseAdminClient(), {
+    bookingId,
+    adminProfileId: profile.id,
+    adminName: profile.full_name ?? "Admin",
+  });
+  revalidatePath("/admin/bookings");
+  revalidatePath("/admin/payments");
+  redirect(`/admin/bookings?success=${result.ok ? "payment-recorded" : "payment-record-failed"}`);
+}
+
+export async function markBookingUnpaidAction(formData: FormData) {
+  await requireAdmin();
+  const bookingId = requiredString(formData, "bookingId");
+  const result = await markBookingUnpaid(createSupabaseAdminClient(), bookingId);
+  revalidatePath("/admin/bookings");
+  revalidatePath("/admin/payments");
+  redirect(`/admin/bookings?success=${result.ok ? "marked-unpaid" : "override-failed"}`);
+}
+
+export async function voidInvoiceAction(formData: FormData) {
+  await requireAdmin();
+  const bookingId = requiredString(formData, "bookingId");
+  const result = await voidBookingInvoice(createSupabaseAdminClient(), bookingId);
+  revalidatePath("/admin/bookings");
+  redirect(`/admin/bookings?success=${result.ok ? "invoice-voided" : "override-failed"}`);
 }
 
 async function makeCleanerEligibleForAdminBooking(
