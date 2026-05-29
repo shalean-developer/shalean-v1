@@ -93,3 +93,23 @@ export function getZohoConfig(): ZohoConfig | null {
 export function isZohoConfigured(): boolean {
   return getZohoConfig() !== null;
 }
+
+/** Required Zoho env vars (ZOHO_DC is optional and defaults to "com"). */
+export const REQUIRED_ZOHO_ENV_KEYS = [
+  "ZOHO_CLIENT_ID",
+  "ZOHO_CLIENT_SECRET",
+  "ZOHO_REFRESH_TOKEN",
+  "ZOHO_ORGANIZATION_ID",
+] as const;
+
+/**
+ * Returns the names (never values) of required Zoho env vars that are
+ * missing/empty in the current runtime. Used to produce actionable
+ * "which key is missing" diagnostics without leaking secrets.
+ */
+export function getMissingZohoConfigKeys(): string[] {
+  return REQUIRED_ZOHO_ENV_KEYS.filter((key) => {
+    const value = process.env[key];
+    return !value || value.trim().length === 0;
+  });
+}

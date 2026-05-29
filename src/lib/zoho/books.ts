@@ -14,6 +14,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 import { slugToTitle } from "@/lib/utils";
 import {
+  getMissingZohoConfigKeys,
   getZohoConfig,
   type ZohoConfig,
   zohoAccountsBaseUrl,
@@ -329,11 +330,15 @@ export async function syncBookingToZohoBooks(
 
   const config = getZohoConfig();
   if (!config) {
+    const missing = getMissingZohoConfigKeys();
+    const message = missing.length > 0
+      ? `Zoho Books is not configured. Missing/empty env vars: ${missing.join(", ")}.`
+      : "Zoho Books is not configured.";
     await persistSyncOutcome(supabase, bookingId, {
       zoho_sync_status: "skipped",
-      zoho_sync_error: "Zoho Books is not configured.",
+      zoho_sync_error: message,
     });
-    return { bookingId, status: "skipped", error: "Zoho Books is not configured." };
+    return { bookingId, status: "skipped", error: message };
   }
 
   if (bookingRow.payment_status !== "paid") {
