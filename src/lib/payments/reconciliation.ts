@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { verifyPaystackTransaction } from "@/lib/payments/paystack";
 import { dispatchRegularCleaningOffers } from "@/lib/regular-cleaning/dispatch";
+import { syncBookingsToZohoBooksSafe } from "@/lib/zoho/books";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Database, Json } from "@/lib/supabase/database.types";
 
@@ -141,6 +142,9 @@ export async function reconcilePaystackPayment(input: PaymentReconciliationInput
     ? await findBookingIdsForRecurringSeries(supabase, recurringSeries.id)
     : [booking.id];
   await dispatchRegularCleaningOffers(supabase, dispatchedBookingIds);
+
+  // Accounting sync is best-effort and must never fail payment reconciliation.
+  await syncBookingsToZohoBooksSafe(supabase, dispatchedBookingIds);
 
   return {
     bookingId: booking.id,
