@@ -18,6 +18,7 @@ import {
 export type NotificationType =
   | "booking_confirmation"
   | "invoice_created"
+  | "payment_link"
   | "payment_received"
   | "booking_cancelled"
   | "booking_rescheduled"
@@ -54,6 +55,19 @@ export type PaymentReceivedData = {
   serviceName: string;
   amountCents: number;
   paymentReference?: string | null;
+};
+
+export type PaymentLinkData = {
+  customerName: string;
+  bookingReference: string;
+  serviceName: string;
+  bookingDate: string;
+  bookingTime: string;
+  suburb?: string | null;
+  address?: string | null;
+  amountCents: number;
+  paymentUrl: string;
+  invoiceNumber?: string | null;
 };
 
 export type BookingCancelledData = {
@@ -213,6 +227,26 @@ export function PaymentReceivedEmail(data: PaymentReceivedData): EmailContent {
   return { subject: `Payment received - ${data.bookingReference}`, ...layout };
 }
 
+export function PaymentLinkEmail(data: PaymentLinkData): EmailContent {
+  const rows: DetailRow[] = [
+    { label: "Booking reference", value: data.bookingReference },
+    { label: "Invoice number", value: data.invoiceNumber ?? "" },
+    { label: "Service", value: data.serviceName },
+    { label: "When", value: dateTime(data.bookingDate, data.bookingTime) },
+    { label: "Where", value: [data.address, data.suburb].filter(Boolean).join(", ") },
+    { label: "Amount due", value: money(data.amountCents) },
+  ];
+  const button = renderButton("Pay now", data.paymentUrl);
+  const body = section(rows, button);
+  const layout = renderEmailLayout({
+    heading: "Complete your payment",
+    intro: `Hi ${data.customerName}, your ${data.serviceName} booking with ${shaleanBrand.shortName} is reserved. Please complete payment using the secure link below to confirm it.`,
+    bodyHtml: body.html,
+    bodyText: `${body.text}\n\nPay now: ${data.paymentUrl}`,
+  });
+  return { subject: `Payment link for your booking - ${data.bookingReference}`, ...layout };
+}
+
 export function BookingCancelledEmail(data: BookingCancelledData): EmailContent {
   const rows: DetailRow[] = [
     { label: "Booking reference", value: data.bookingReference },
@@ -351,6 +385,7 @@ export function AdminPaymentFailedEmail(data: AdminPaymentFailedData): EmailCont
 type TemplateDataMap = {
   booking_confirmation: BookingConfirmationData;
   invoice_created: InvoiceCreatedData;
+  payment_link: PaymentLinkData;
   payment_received: PaymentReceivedData;
   booking_cancelled: BookingCancelledData;
   booking_rescheduled: BookingRescheduledData;
@@ -364,6 +399,7 @@ type TemplateDataMap = {
 const registry: { [K in NotificationType]: (data: TemplateDataMap[K]) => EmailContent } = {
   booking_confirmation: BookingConfirmationEmail,
   invoice_created: InvoiceCreatedEmail,
+  payment_link: PaymentLinkEmail,
   payment_received: PaymentReceivedEmail,
   booking_cancelled: BookingCancelledEmail,
   booking_rescheduled: BookingRescheduledEmail,

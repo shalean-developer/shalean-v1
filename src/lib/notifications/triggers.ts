@@ -279,6 +279,41 @@ export async function notifyInvoiceCreated(
   });
 }
 
+export async function notifyPaymentLink(
+  supabase: Supabase,
+  args: {
+    booking: BookingLike;
+    customer: CustomerLike;
+    amountCents: number;
+    paymentUrl: string;
+    invoiceNumber?: string | null;
+  },
+): Promise<void> {
+  const addresses = getEmailAddresses();
+  if (!args.customer.email) return;
+  const ref = bookingReference(args.booking.id);
+
+  await safe("payment_link", async () => {
+    await enqueueNotification(supabase, {
+      type: "payment_link",
+      to: args.customer.email as string,
+      replyTo: addresses.accounts,
+      data: {
+        customerName: customerName(args.customer),
+        bookingReference: ref,
+        serviceName: slugToTitle(args.booking.service_slug),
+        bookingDate: args.booking.booking_date,
+        bookingTime: args.booking.booking_time,
+        suburb: args.booking.suburb ?? null,
+        address: args.booking.address ?? null,
+        amountCents: args.amountCents,
+        paymentUrl: args.paymentUrl,
+        invoiceNumber: args.invoiceNumber ?? null,
+      },
+    });
+  });
+}
+
 export async function notifyCustomerRegistered(
   supabase: Supabase,
   args: { fullName: string; email: string; phone?: string | null },

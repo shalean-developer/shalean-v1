@@ -9,6 +9,21 @@ export const siteConfig = {
   serviceArea: "Cape Town, South Africa",
 };
 
+/**
+ * Absolute base URL for building customer-facing links from server code (e.g.
+ * Paystack callback + payment links sent by email). Prefers an explicit app URL,
+ * then the public site URL, then a safe production default. Trailing slash is
+ * always stripped so callers can append paths directly.
+ */
+export function appUrl(): string {
+  const fromEnv =
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    process.env.APP_URL?.trim() ||
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
+    siteConfig.url;
+  return fromEnv.replace(/\/$/, "");
+}
+
 export const supportContact = {
   callNumber: "087 153 5250",
   callHref: "tel:+27871535250",

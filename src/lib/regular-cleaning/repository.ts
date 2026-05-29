@@ -291,6 +291,7 @@ export function buildRegularCleaningBookingInsert(
 ) {
   return {
     checkout_session_id: input.checkoutId,
+    idempotency_key: input.idempotencyKey ?? null,
     recurring_series_id: recurring?.recurringSeriesId ?? null,
     occurrence_index: recurring?.occurrenceIndex ?? 1,
     occurrence_count: recurring?.occurrenceCount ?? 1,
