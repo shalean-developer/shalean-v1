@@ -47,13 +47,6 @@ function cleanerName(cleaner: CleanerDirectoryRow) {
   return cleaner.display_name ?? cleaner.full_name ?? "Unnamed cleaner";
 }
 
-function formatDate(value: string | null) {
-  if (!value) return "—";
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" });
-}
-
 export function CleanerDirectory({ cleaners }: { cleaners: CleanerDirectoryRow[] }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterValue>("all");
@@ -175,15 +168,13 @@ export function CleanerDirectory({ cleaners }: { cleaners: CleanerDirectoryRow[]
         ) : (
           <>
             <div className="mt-4 hidden overflow-x-auto rounded-xl border border-slate-200 lg:block">
-              <table className="w-full min-w-[860px] border-collapse text-left text-sm">
+              <table className="w-full min-w-[640px] border-collapse text-left text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    <Th>Cleaner</Th>
+                    <Th>Name</Th>
                     <Th>Phone</Th>
-                    <Th>Email</Th>
                     <Th className="text-center">Jobs</Th>
                     <Th className="text-center">Rating</Th>
-                    <Th>Last booking</Th>
                     <Th>Status</Th>
                     <Th className="text-right">Actions</Th>
                   </tr>
@@ -205,14 +196,10 @@ export function CleanerDirectory({ cleaners }: { cleaners: CleanerDirectoryRow[]
                         </Link>
                       </td>
                       <td className="px-4 py-3 text-slate-600">{cleaner.phone || "—"}</td>
-                      <td className="px-4 py-3 text-slate-600">
-                        <span className="block max-w-[200px] truncate">{cleaner.auth_email ?? "—"}</span>
-                      </td>
                       <td className="px-4 py-3 text-center font-semibold text-slate-700">{cleaner.jobsCompleted}</td>
                       <td className="px-4 py-3">
                         <RatingValue rating={cleaner.rating} />
                       </td>
-                      <td className="px-4 py-3 text-slate-600">{formatDate(cleaner.lastBookingDate)}</td>
                       <td className="px-4 py-3">
                         <StatusBadge status={status} />
                       </td>
@@ -235,7 +222,7 @@ export function CleanerDirectory({ cleaners }: { cleaners: CleanerDirectoryRow[]
                       </span>
                       <span className="min-w-0">
                         <span className="block truncate font-semibold text-slate-900">{cleanerName(cleaner)}</span>
-                        <span className="block truncate text-xs text-slate-500">{cleaner.auth_email ?? "—"}</span>
+                        <span className="block truncate text-xs text-slate-500">{cleaner.phone || "—"}</span>
                       </span>
                     </Link>
                     <CleanerActionsMenu cleanerId={cleaner.id} status={status} />
@@ -247,7 +234,6 @@ export function CleanerDirectory({ cleaners }: { cleaners: CleanerDirectoryRow[]
                   <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
                     <MobileField label="Phone" value={cleaner.phone || "—"} />
                     <MobileField label="Jobs done" value={String(cleaner.jobsCompleted)} />
-                    <MobileField label="Last booking" value={formatDate(cleaner.lastBookingDate)} />
                   </dl>
                 </div>
               ))}
