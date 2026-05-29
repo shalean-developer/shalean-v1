@@ -143,9 +143,16 @@ export async function reconcilePaystackPayment(input: PaymentReconciliationInput
 
   if (paymentUpdate.error) throw paymentUpdate.error;
 
+  const settlement: PaidSettlement = {
+    paidAt: verification.paidAt ?? new Date().toISOString(),
+    reference,
+    transactionId: verification.transactionId ?? null,
+    amountCents: targetAmountCents,
+  };
+
   const bookingUpdate = recurringSeries
-    ? await markRecurringBookingsPaid(supabase, recurringSeries, decision)
-    : await markSingleBookingPaid(supabase, booking, decision);
+    ? await markRecurringBookingsPaid(supabase, recurringSeries, decision, settlement)
+    : await markSingleBookingPaid(supabase, booking, decision, settlement);
 
   if (bookingUpdate.error) throw bookingUpdate.error;
 
@@ -235,16 +242,31 @@ async function findRecurringSeries(supabase: Supabase, seriesId: string) {
   return result.data;
 }
 
+type PaidSettlement = {
+  paidAt: string;
+  reference: string;
+  transactionId: string | null;
+  amountCents: number;
+};
+
 async function markSingleBookingPaid(
   supabase: Supabase,
   booking: BookingRow,
   decision: ReturnType<typeof resolvePaystackReconciliationDecision> & { reconciled: true },
+  settlement: PaidSettlement,
 ) {
   const result = await supabase
     .from("bookings")
     .update({
       payment_status: decision.paymentStatus,
       booking_status: decision.bookingStatus,
+      paid_at: settlement.paidAt,
+      payment_method: "paystack",
+      payment_reference: settlement.reference,
+      paystack_reference: settlement.reference,
+      paystack_transaction_id: settlement.transactionId,
+      amount_paid_cents: booking.final_total_cents,
+      balance_remaining_cents: 0,
     })
     .eq("id", booking.id)
     .select("id, payment_status, booking_status")
@@ -261,6 +283,7 @@ async function markRecurringBookingsPaid(
   supabase: Supabase,
   series: RecurringSeriesRow,
   decision: ReturnType<typeof resolvePaystackReconciliationDecision> & { reconciled: true },
+  settlement: PaidSettlement,
 ) {
   const seriesResult = await supabase
     .from("booking_recurring_series")
@@ -283,6 +306,11 @@ async function markRecurringBookingsPaid(
     .update({
       payment_status: decision.paymentStatus,
       booking_status: decision.bookingStatus,
+      paid_at: settlement.paidAt,
+      payment_method: "paystack",
+      payment_reference: settlement.reference,
+      paystack_reference: settlement.reference,
+      paystack_transaction_id: settlement.transactionId,
     })
     .eq("recurring_series_id", series.id);
 

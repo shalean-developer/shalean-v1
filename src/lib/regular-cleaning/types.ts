@@ -25,6 +25,11 @@ export type RegularCleaningCatalog = {
 
 export type RegularCleaningBookingInput = {
   checkoutId: string;
+  /**
+   * Optional idempotency key persisted on the booking. Used by the admin-assisted
+   * flow to dedupe double-submits. Customer checkout dedupes via checkoutId.
+   */
+  idempotencyKey?: string | null;
   serviceSlug: typeof REGULAR_CLEANING_SLUG;
   frequency: "once" | "weekly" | "fortnightly" | "monthly";
   recurrenceWeekdays: number[];

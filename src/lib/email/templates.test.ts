@@ -10,6 +10,7 @@ import {
   BookingCancelledEmail,
   BookingRescheduledEmail,
   InvoiceCreatedEmail,
+  PaymentLinkEmail,
   PaymentReceivedEmail,
   isNotificationType,
   renderNotification,
@@ -99,6 +100,51 @@ describe("invoice emails", () => {
     });
     expect(email.html).toContain("INV-000123");
     expect(email.html).toContain("https://books.zoho.com/app/999#/invoices/inv-1");
+  });
+});
+
+describe("payment link email", () => {
+  it("renders the booking details, amount and a Pay now link", () => {
+    const email = PaymentLinkEmail({
+      customerName: "Naledi",
+      bookingReference: "SHL-PAYLINK1",
+      serviceName: "Regular Cleaning",
+      bookingDate: "2026-06-10",
+      bookingTime: "08:00-12:00",
+      suburb: "Sea Point",
+      address: "5 Beach Road",
+      amountCents: 65000,
+      paymentUrl: "https://checkout.paystack.com/abc123",
+      invoiceNumber: "INV-000777",
+    });
+    expect(email.subject).toContain("SHL-PAYLINK1");
+    expect(email.html).toContain("SHL-PAYLINK1");
+    expect(email.html).toContain("Regular Cleaning");
+    expect(email.html).toContain("2026-06-10");
+    expect(email.html).toContain("Sea Point");
+    expect(email.html).toContain(formatZar(65000));
+    expect(email.html).toContain("https://checkout.paystack.com/abc123");
+    expect(email.html).toContain("Pay now");
+    // Branding + support details are present.
+    expect(email.html).toContain(shaleanBrand.name);
+    expect(email.html).toContain("087 153 5250");
+    // Plain-text part includes the raw link for clients that strip the button.
+    expect(email.text).toContain("https://checkout.paystack.com/abc123");
+  });
+
+  it("renders the payment link via the registry by type", () => {
+    expect(isNotificationType("payment_link")).toBe(true);
+    const email = renderNotification("payment_link", {
+      customerName: "Naledi",
+      bookingReference: "SHL-REG00001",
+      serviceName: "Regular Cleaning",
+      bookingDate: "2026-06-10",
+      bookingTime: "08:00-12:00",
+      amountCents: 65000,
+      paymentUrl: "https://checkout.paystack.com/xyz",
+    });
+    expect(email.html).toContain("SHL-REG00001");
+    expect(email.html).toContain("https://checkout.paystack.com/xyz");
   });
 });
 
