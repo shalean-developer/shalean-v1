@@ -1145,6 +1145,32 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function friendlyAuthError(error: { message?: string } | null, mode: "login" | "signup") {
+  const raw = error?.message?.toLowerCase() ?? "";
+
+  if (raw.includes("invalid login credentials")) {
+    return "We couldn’t find an account with that email and password. Check your details, or create an account instead.";
+  }
+  if (raw.includes("email not confirmed")) {
+    return "Please confirm your email address first, then log in.";
+  }
+  if (raw.includes("already registered") || raw.includes("already exists") || raw.includes("user already")) {
+    return "An account with this email already exists. Switch to “Sign in” to log in.";
+  }
+  if (raw.includes("password") && (raw.includes("least") || raw.includes("short") || raw.includes("weak"))) {
+    return "Your password is too short. Use at least 6 characters.";
+  }
+  if (raw.includes("rate limit") || raw.includes("too many")) {
+    return "Too many attempts. Please wait a moment and try again.";
+  }
+  if (error?.message) {
+    return error.message;
+  }
+  return mode === "login"
+    ? "Unable to sign you in. Please try again."
+    : "Unable to create your account. Please try again.";
+}
+
 function SignInOrSignUp({
   draft,
   onAuthChange,
@@ -1174,21 +1200,60 @@ function SignInOrSignUp({
 
     try {
       const supabase = createSupabaseBrowserClient();
-      const result = mode === "login"
-        ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-              data: {
-                full_name: fullName,
-                phone,
-              },
-            },
-          });
 
-      if (result.error) {
-        throw result.error;
+      if (mode === "login") {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error || !data.session) {
+          throw new Error(friendlyAuthError(error, "login"));
+        }
+
+        // Load the customer's saved profile instead of overwriting it with the
+        // empty name/phone fields that the login form does not collect.
+        let nextCustomer = { name: fullName, email, phone };
+        try {
+          const profileResponse = await fetch("/api/auth/customer-profile", { headers: { Accept: "application/json" } });
+          if (profileResponse.ok) {
+            const payload = (await profileResponse.json()) as {
+              profile?: { fullName?: string; email?: string; phone?: string };
+            };
+            nextCustomer = {
+              name: payload.profile?.fullName || fullName,
+              email: payload.profile?.email || email,
+              phone: payload.profile?.phone || phone,
+            };
+          }
+        } catch {
+          // Ignore profile lookup failures; the confirm step lets the customer fill in any gaps.
+        }
+
+        const nextDraft = { ...draft, customer: nextCustomer };
+        saveDraft(nextDraft);
+        onAuthChange(true);
+        onProfileReadyChange(isCustomerIdentityComplete(nextDraft));
+        return;
+      }
+
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+            phone,
+          },
+        },
+      });
+
+      if (error) {
+        throw new Error(friendlyAuthError(error, "signup"));
+      }
+
+      // When email confirmation is enabled there is no session yet, so the
+      // account cannot be used for checkout until the customer confirms + logs in.
+      if (!data.session) {
+        setMode("login");
+        setMessage("Account created. Please confirm your email, then log in to continue.");
+        return;
       }
 
       const profileResult = await fetch("/api/auth/customer-profile", {
@@ -1198,16 +1263,15 @@ function SignInOrSignUp({
       });
 
       if (!profileResult.ok) {
-        throw new Error("Signed in, but could not save your customer profile.");
+        throw new Error("Your account is ready, but we couldn’t save your details. Continue to confirm them.");
       }
 
-      onAuthChange(true);
-      onProfileReadyChange(true);
       saveDraft({
         ...draft,
         customer: { name: fullName, email, phone },
       });
-      setMessage("You’re all set. Confirm your details to continue.");
+      onAuthChange(true);
+      onProfileReadyChange(true);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to sign you in. Please try again.");
     } finally {
