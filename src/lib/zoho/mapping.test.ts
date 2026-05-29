@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildZohoContactPayload,
   buildZohoInvoicePayload,
+  buildZohoPaymentPayload,
   centsToMajor,
   type ZohoBookingSnapshot,
 } from "./mapping";
@@ -100,5 +101,42 @@ describe("buildZohoInvoicePayload", () => {
       "contact-1",
     );
     expect(payload.line_items.some((item) => item.name.startsWith("Equipment"))).toBe(false);
+  });
+});
+
+describe("buildZohoPaymentPayload", () => {
+  it("applies the full amount to the invoice to mark it paid", () => {
+    const payload = buildZohoPaymentPayload({
+      contactId: "contact-1",
+      invoiceId: "inv-1",
+      amountCents: 50000,
+      reference: "SHL-1111AAAA",
+      date: "2026-06-02",
+      paymentMode: "banktransfer",
+      accountId: "deposit-1",
+    });
+
+    expect(payload).toMatchObject({
+      customer_id: "contact-1",
+      payment_mode: "banktransfer",
+      amount: 500,
+      date: "2026-06-02",
+      reference_number: "SHL-1111AAAA",
+      account_id: "deposit-1",
+    });
+    expect(payload.invoices).toEqual([{ invoice_id: "inv-1", amount_applied: 500 }]);
+  });
+
+  it("omits account_id when none is provided", () => {
+    const payload = buildZohoPaymentPayload({
+      contactId: "contact-1",
+      invoiceId: "inv-1",
+      amountCents: 12345,
+      reference: "SHL-2",
+      date: "2026-06-02",
+      paymentMode: "creditcard",
+    });
+    expect(payload.amount).toBe(123.45);
+    expect("account_id" in payload).toBe(false);
   });
 });

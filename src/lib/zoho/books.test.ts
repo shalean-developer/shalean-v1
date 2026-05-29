@@ -104,15 +104,21 @@ describe("syncBookingToZohoBooks", () => {
       addons: [{ label: "Inside Oven", price_cents: 15000 }],
       equipment: [{ label: "With Equipment", price_cents: 5000 }],
     };
+    vi.stubEnv("ZOHO_PAYMENT_ACCOUNT_ID", "deposit-1");
     const { client, updates } = makeSupabaseStub(state);
 
-    const fetchMock = vi.fn(async (input: string | URL) => {
+    const customerPaymentBodies: Array<Record<string, unknown>> = [];
+    const fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
       const url = String(input);
       if (url.includes("/oauth/v2/token")) return jsonResponse({ access_token: "tok", expires_in: 3600 });
       if (url.includes("/contacts") && !url.includes("/invoices")) {
         // GET lookup returns empty, POST create returns id. Distinguish by query param.
         if (url.includes("email=")) return jsonResponse({ code: 0, contacts: [] });
         return jsonResponse({ code: 0, contact: { contact_id: "contact-1" } });
+      }
+      if (url.includes("/customerpayments")) {
+        customerPaymentBodies.push(JSON.parse(String(init?.body ?? "{}")));
+        return jsonResponse({ code: 0, payment: { payment_id: "pay-1" } });
       }
       if (url.includes("/status/sent")) return jsonResponse({ code: 0 });
       if (url.includes("/invoices")) return jsonResponse({ code: 0, invoice: { invoice_id: "inv-1", invoice_number: "INV-001" } });
@@ -126,6 +132,17 @@ describe("syncBookingToZohoBooks", () => {
     expect(result.zohoContactId).toBe("contact-1");
     expect(result.zohoInvoiceId).toBe("inv-1");
     expect(result.zohoInvoiceUrl).toContain("books.zoho.com/app/org-123#/invoices/inv-1");
+
+    // The invoice is marked paid via a full customer payment.
+    expect(customerPaymentBodies).toHaveLength(1);
+    expect(customerPaymentBodies[0]).toMatchObject({
+      customer_id: "contact-1",
+      amount: 500,
+      account_id: "deposit-1",
+      invoices: [{ invoice_id: "inv-1", amount_applied: 500 }],
+    });
+    // When payment succeeds we don't also call the "mark as sent" endpoint.
+    expect(fetchMock.mock.calls.some(([u]) => String(u).includes("/status/sent"))).toBe(false);
 
     const persisted = updates.at(-1) as Record<string, unknown>;
     expect(persisted.zoho_sync_status).toBe("synced");
