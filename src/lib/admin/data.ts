@@ -2,6 +2,8 @@ import { REGULAR_CLEANING_SLUG } from "@/lib/regular-cleaning/types";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 
+const requiredRegularCleaningPricingKeys = ["bedroom", "bathroom", "extra_room", "minimum_booking"];
+
 export type CleanerRow = Database["public"]["Tables"]["cleaners"]["Row"];
 export type CustomerRow = Database["public"]["Tables"]["customers"]["Row"];
 export type AddonRow = Database["public"]["Tables"]["service_addons"]["Row"];
@@ -159,7 +161,12 @@ export async function loadAdminManagementData() {
     supabase.from("customers").select("*").order("full_name"),
     supabase.from("service_addons").select("*").eq("service_slug", REGULAR_CLEANING_SLUG).eq("active", true).order("sort_order"),
     supabase.from("service_equipment_options").select("*").eq("service_slug", REGULAR_CLEANING_SLUG).eq("active", true).order("sort_order"),
-    supabase.from("regular_cleaning_pricing_rules").select("id", { count: "exact", head: true }).eq("active", true),
+    supabase
+      .from("pricing_rules")
+      .select("key")
+      .eq("service_slug", REGULAR_CLEANING_SLUG)
+      .eq("active", true)
+      .in("key", requiredRegularCleaningPricingKeys),
   ]);
 
   if (cleanersResult.error) throw cleanersResult.error;
@@ -168,12 +175,14 @@ export async function loadAdminManagementData() {
   if (equipmentResult.error) throw equipmentResult.error;
   if (pricingRulesResult.error) throw pricingRulesResult.error;
 
+  const activePricingKeys = new Set((pricingRulesResult.data ?? []).map((rule) => rule.key));
+
   return {
     cleaners: cleanersResult.data ?? [],
     customers: customersResult.data ?? [],
     addons: addonsResult.data ?? [],
     equipmentOptions: equipmentResult.data ?? [],
-    hasActivePricingRules: (pricingRulesResult.count ?? 0) > 0,
+    hasActivePricingRules: requiredRegularCleaningPricingKeys.every((key) => activePricingKeys.has(key)),
   };
 }
 

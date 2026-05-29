@@ -369,167 +369,180 @@ export async function resetCustomerPasswordAction(formData: FormData) {
 export async function createAdminBookingAction(formData: FormData) {
   const { profile } = await requireAdmin();
   const supabase = createSupabaseAdminClient();
-  const customerId = requiredString(formData, "customerId");
-  const customerResult = await supabase.from("customers").select("*").eq("id", customerId).single();
+  let redirectTo = "/admin/bookings?success=booking-created";
+  let shouldRevalidate = false;
 
-  if (customerResult.error) throw customerResult.error;
-
-  const idempotencyKey = optionalString(formData, "idempotencyKey");
-  if (!idempotencyKey) {
-    redirect("/admin/bookings?error=idempotency-required");
-  }
-
-  const claim = await claimAdminBookingCreation(supabase, {
-    idempotencyKey,
-    adminProfileId: profile.id,
-    customerId,
-  });
-
-  if (claim.status === "reused") {
-    console.info("ADMIN_BOOKING_CREATE_REUSED", {
-      booking_reference: claim.outcome.bookingReferences[0] ?? null,
-      idempotency_key: idempotencyKey,
-      admin_user_id: profile.id,
-      booking_ids: claim.outcome.bookingIds,
-      created_at: new Date().toISOString(),
-    });
-    await logAdminBookingAssistAudit(supabase, {
-      adminProfileId: profile.id,
-      customerId,
-      bookingId: claim.outcome.primaryBookingId,
-      action: ADMIN_BOOKING_ASSIST_ACTIONS.bookingCreateReused,
-      idempotencyKey,
-      payload: {
-        booking_ids: claim.outcome.bookingIds,
-        booking_references: claim.outcome.bookingReferences,
-      },
-    });
-    revalidateAdmin();
-    redirect("/admin/bookings?success=booking-created");
-  }
-
-  const frequency = requiredString(formData, "frequency") as RegularCleaningBookingInput["frequency"];
-  const bookingDate = requiredString(formData, "bookingDate");
-  const selectedWeekdays = weekdayList(formData, "recurrenceWeekdays");
-  const selectedCleanerChoice = optionalString(formData, "selectedCleanerId");
-  if (!selectedCleanerChoice) {
-    redirect("/admin/bookings?error=assignment-required");
-  }
-  const selectedCleanerId = selectedCleanerChoice === AUTO_ASSIGN_SENTINEL ? null : selectedCleanerChoice;
-  const bookingInput: RegularCleaningBookingInput = {
-    checkoutId: idempotencyKey,
-    idempotencyKey,
-    serviceSlug: REGULAR_CLEANING_SLUG,
-    frequency,
-    recurrenceWeekdays: frequency === "monthly"
-      ? []
-      : selectedWeekdays.length > 0
-        ? selectedWeekdays
-        : weekdayFromDate(bookingDate),
-    bookingDate,
-    bookingTime: requiredString(formData, "bookingTime"),
-    address: requiredString(formData, "address"),
-    suburb: requiredString(formData, "suburb"),
-    propertyType: requiredString(formData, "propertyType"),
-    bedrooms: clampInt(intValue(formData, "bedrooms"), 0, 12),
-    bathrooms: clampInt(intValue(formData, "bathrooms"), 1, 12),
-    extraRooms: clampInt(intValue(formData, "extraRooms"), 0, 12),
-    squareMeters: 80,
-    selectedAddonKeys: formData.getAll("addonKeys").map(String),
-    equipmentOptionKey: requiredString(formData, "equipmentOptionKey") as RegularCleaningBookingInput["equipmentOptionKey"],
-    cleanerCount: clampInt(intValue(formData, "cleanerCount"), 1, 4),
-    selectedCleanerId,
-    accessNotes: optionalString(formData, "accessNotes"),
-    customer: {
-      fullName: customerResult.data.full_name,
-      email: customerResult.data.email,
-      phone: customerResult.data.phone,
-    },
-  };
-
-  if (selectedCleanerId) {
-    await makeCleanerEligibleForAdminBooking(supabase, selectedCleanerId, bookingInput.suburb);
-  }
-
-  let bookingIds: string[] = [];
   try {
-    const created = await createRegularCleaningBooking(supabase, bookingInput, customerId);
-    bookingIds = created.bookingIds;
-  } catch (error) {
-    // A unique-constraint violation means a concurrent double-submit already
-    // created this booking — treat it as success rather than a duplicate.
-    if (error instanceof Error && /duplicate key|23505/.test(error.message)) {
-      const raced = await loadBookingIdsForIdempotencyKey(supabase, idempotencyKey);
-      if (raced) {
-        await persistAdminBookingIdempotencyOutcome(supabase, {
-          idempotencyKey,
-          adminProfileId: profile.id,
-          customerId,
-          outcome: raced,
-        });
+    const customerId = requiredString(formData, "customerId");
+    const customerResult = await supabase.from("customers").select("*").eq("id", customerId).single();
+
+    if (customerResult.error) throw customerResult.error;
+
+    const idempotencyKey = optionalString(formData, "idempotencyKey");
+    if (!idempotencyKey) {
+      redirectTo = "/admin/bookings?error=idempotency-required";
+    } else {
+      const claim = await claimAdminBookingCreation(supabase, {
+        idempotencyKey,
+        adminProfileId: profile.id,
+        customerId,
+      });
+
+      if (claim.status === "reused") {
         console.info("ADMIN_BOOKING_CREATE_REUSED", {
-          booking_reference: raced.bookingReferences[0] ?? null,
+          booking_reference: claim.outcome.bookingReferences[0] ?? null,
           idempotency_key: idempotencyKey,
           admin_user_id: profile.id,
-          booking_ids: raced.bookingIds,
+          booking_ids: claim.outcome.bookingIds,
           created_at: new Date().toISOString(),
         });
+        await logAdminBookingAssistAudit(supabase, {
+          adminProfileId: profile.id,
+          customerId,
+          bookingId: claim.outcome.primaryBookingId,
+          action: ADMIN_BOOKING_ASSIST_ACTIONS.bookingCreateReused,
+          idempotencyKey,
+          payload: {
+            booking_ids: claim.outcome.bookingIds,
+            booking_references: claim.outcome.bookingReferences,
+          },
+        });
+        shouldRevalidate = true;
+      } else {
+        const frequency = requiredString(formData, "frequency") as RegularCleaningBookingInput["frequency"];
+        const bookingDate = requiredString(formData, "bookingDate");
+        const selectedWeekdays = weekdayList(formData, "recurrenceWeekdays");
+        const selectedCleanerChoice = optionalString(formData, "selectedCleanerId");
+
+        if (!selectedCleanerChoice) {
+          redirectTo = "/admin/bookings?error=assignment-required";
+        } else {
+          const selectedCleanerId = selectedCleanerChoice === AUTO_ASSIGN_SENTINEL ? null : selectedCleanerChoice;
+          const bookingInput: RegularCleaningBookingInput = {
+            checkoutId: idempotencyKey,
+            idempotencyKey,
+            serviceSlug: REGULAR_CLEANING_SLUG,
+            frequency,
+            recurrenceWeekdays: frequency === "monthly"
+              ? []
+              : selectedWeekdays.length > 0
+                ? selectedWeekdays
+                : weekdayFromDate(bookingDate),
+            bookingDate,
+            bookingTime: requiredString(formData, "bookingTime"),
+            address: requiredString(formData, "address"),
+            suburb: requiredString(formData, "suburb"),
+            propertyType: requiredString(formData, "propertyType"),
+            bedrooms: clampInt(intValue(formData, "bedrooms"), 0, 12),
+            bathrooms: clampInt(intValue(formData, "bathrooms"), 1, 12),
+            extraRooms: clampInt(intValue(formData, "extraRooms"), 0, 12),
+            squareMeters: 80,
+            selectedAddonKeys: formData.getAll("addonKeys").map(String),
+            equipmentOptionKey: requiredString(formData, "equipmentOptionKey") as RegularCleaningBookingInput["equipmentOptionKey"],
+            cleanerCount: clampInt(intValue(formData, "cleanerCount"), 1, 4),
+            selectedCleanerId,
+            accessNotes: optionalString(formData, "accessNotes"),
+            customer: {
+              fullName: customerResult.data.full_name,
+              email: customerResult.data.email,
+              phone: customerResult.data.phone,
+            },
+          };
+
+          if (selectedCleanerId) {
+            await makeCleanerEligibleForAdminBooking(supabase, selectedCleanerId, bookingInput.suburb);
+          }
+
+          let bookingIds: string[] = [];
+          try {
+            const created = await createRegularCleaningBooking(supabase, bookingInput, customerId);
+            bookingIds = created.bookingIds;
+          } catch (error) {
+            // A unique-constraint violation means a concurrent double-submit already
+            // created this booking - treat it as success rather than a duplicate.
+            if (error instanceof Error && /duplicate key|23505/.test(error.message)) {
+              const raced = await loadBookingIdsForIdempotencyKey(supabase, idempotencyKey);
+              if (raced) {
+                await persistAdminBookingIdempotencyOutcome(supabase, {
+                  idempotencyKey,
+                  adminProfileId: profile.id,
+                  customerId,
+                  outcome: raced,
+                });
+                console.info("ADMIN_BOOKING_CREATE_REUSED", {
+                  booking_reference: raced.bookingReferences[0] ?? null,
+                  idempotency_key: idempotencyKey,
+                  admin_user_id: profile.id,
+                  booking_ids: raced.bookingIds,
+                  created_at: new Date().toISOString(),
+                });
+              }
+              shouldRevalidate = true;
+            } else {
+              throw error;
+            }
+          }
+
+          if (bookingIds.length > 0) {
+            const idempotencyOutcome = await loadBookingIdsForIdempotencyKey(supabase, idempotencyKey);
+            if (idempotencyOutcome) {
+              await persistAdminBookingIdempotencyOutcome(supabase, {
+                idempotencyKey,
+                adminProfileId: profile.id,
+                customerId,
+                outcome: idempotencyOutcome,
+              });
+
+              const primaryReference = idempotencyOutcome.bookingReferences[0] ?? null;
+              console.info("ADMIN_BOOKING_CREATED", {
+                booking_reference: primaryReference,
+                idempotency_key: idempotencyKey,
+                admin_user_id: profile.id,
+                booking_ids: idempotencyOutcome.bookingIds,
+                created_at: new Date().toISOString(),
+              });
+
+              await logAdminBookingAssistAudit(supabase, {
+                adminProfileId: profile.id,
+                customerId,
+                bookingId: idempotencyOutcome.primaryBookingId,
+                action: ADMIN_BOOKING_ASSIST_ACTIONS.bookingCreated,
+                idempotencyKey,
+                payload: {
+                  booking_ids: idempotencyOutcome.bookingIds,
+                  booking_references: idempotencyOutcome.bookingReferences,
+                  occurrence_count: idempotencyOutcome.bookingIds.length,
+                },
+              });
+            }
+
+            // Issue an unpaid Zoho invoice + Paystack payment link for the new booking.
+            // Best-effort: never blocks booking creation. Failures are visible/retryable
+            // from the booking row actions.
+            const provision = await provisionAdminBookingBilling(supabase, bookingIds);
+            redirectTo = provision.invoiceStatus === "synced" && provision.paymentLinkOk
+              ? "/admin/bookings?success=booking-billed"
+              : "/admin/bookings?success=booking-created";
+            shouldRevalidate = true;
+          }
+        }
       }
-      revalidateAdmin();
-      redirect("/admin/bookings?success=booking-created");
     }
+  } catch (error) {
     if (error instanceof PreferredCleanerUnavailableError) {
-      redirect("/admin/bookings?error=cleaner-unavailable");
+      redirectTo = "/admin/bookings?error=cleaner-unavailable";
+    } else if (error instanceof Error && isRegularCleaningCatalogConfigurationError(error.message)) {
+      redirectTo = "/admin/bookings?error=catalog-config";
+    } else {
+      console.error("ADMIN_BOOKING_CREATE_FAILED", error);
+      redirectTo = "/admin/bookings?error=create-failed";
     }
-    if (error instanceof Error && isRegularCleaningCatalogConfigurationError(error.message)) {
-      redirect("/admin/bookings?error=catalog-config");
-    }
-    console.error("ADMIN_BOOKING_CREATE_FAILED", error);
-    redirect("/admin/bookings?error=create-failed");
   }
 
-  const idempotencyOutcome = await loadBookingIdsForIdempotencyKey(supabase, idempotencyKey);
-  if (idempotencyOutcome) {
-    await persistAdminBookingIdempotencyOutcome(supabase, {
-      idempotencyKey,
-      adminProfileId: profile.id,
-      customerId,
-      outcome: idempotencyOutcome,
-    });
-
-    const primaryReference = idempotencyOutcome.bookingReferences[0] ?? null;
-    console.info("ADMIN_BOOKING_CREATED", {
-      booking_reference: primaryReference,
-      idempotency_key: idempotencyKey,
-      admin_user_id: profile.id,
-      booking_ids: idempotencyOutcome.bookingIds,
-      created_at: new Date().toISOString(),
-    });
-
-    await logAdminBookingAssistAudit(supabase, {
-      adminProfileId: profile.id,
-      customerId,
-      bookingId: idempotencyOutcome.primaryBookingId,
-      action: ADMIN_BOOKING_ASSIST_ACTIONS.bookingCreated,
-      idempotencyKey,
-      payload: {
-        booking_ids: idempotencyOutcome.bookingIds,
-        booking_references: idempotencyOutcome.bookingReferences,
-        occurrence_count: idempotencyOutcome.bookingIds.length,
-      },
-    });
+  if (shouldRevalidate) {
+    revalidateAdmin();
   }
-
-  // Issue an unpaid Zoho invoice + Paystack payment link for the new booking.
-  // Best-effort: never blocks booking creation. Failures are visible/retryable
-  // from the booking row actions.
-  const provision = await provisionAdminBookingBilling(supabase, bookingIds);
-
-  revalidateAdmin();
-  const outcome = provision.invoiceStatus === "synced" && provision.paymentLinkOk
-    ? "booking-billed"
-    : "booking-created";
-  redirect(`/admin/bookings?success=${outcome}`);
+  redirect(redirectTo);
 }
 
 export async function retryZohoSyncAction(formData: FormData) {
@@ -846,7 +859,10 @@ function revalidatePricing() {
 
 function isRegularCleaningCatalogConfigurationError(message: string) {
   return message === "Regular Cleaning bedroom/bathroom pricing is not configured" ||
-    message === "Regular Cleaning equipment options are not configured";
+    message === "Regular Cleaning equipment options are not configured" ||
+    message === "Regular Cleaning service pricing is not configured" ||
+    message.startsWith("Regular Cleaning pricing rule is not configured: ") ||
+    message.startsWith("Regular Cleaning recurring pricing is not configured for ");
 }
 
 function clampInt(value: number, min: number, max: number) {
