@@ -18,6 +18,8 @@ import { initializePaystackTransaction } from "@/lib/payments/paystack";
 import { reconcilePaystackPayment } from "@/lib/payments/reconciliation";
 import type { Database, Json } from "@/lib/supabase/database.types";
 import { notifyPaymentLink, notifyPaymentReceived } from "@/lib/notifications/triggers";
+import { dispatchCleanersForPaidBooking } from "@/lib/regular-cleaning/dispatch";
+import { ADMIN_BOOKING_ASSIST_ACTIONS, logAdminBookingAssistAudit } from "@/lib/admin/audit";
 import { syncBookingToZohoBooks, voidZohoInvoiceForBooking } from "@/lib/zoho/books";
 
 type Supabase = SupabaseClient<Database>;
@@ -518,7 +520,46 @@ export async function recordManualBookingPayment(
           .update({ zoho_payment_recorded: true })
           .eq("idempotency_key", idempotencyKey);
       }
+
+      await supabase
+        .from("bookings")
+        .update({ invoice_status: "paid" })
+        .eq("id", booking.id);
+
+      await dispatchCleanersForPaidBooking(supabase, {
+        ...booking,
+        payment_status: "paid",
+        booking_status: update.booking_status ?? booking.booking_status,
+      });
+
+      await logAdminBookingAssistAudit(supabase, {
+        adminProfileId: input.adminProfileId,
+        customerId: booking.customer_id ?? "",
+        bookingId: booking.id,
+        action: ADMIN_BOOKING_ASSIST_ACTIONS.cleanerDispatched,
+        idempotencyKey,
+        payload: {
+          booking_reference: booking.booking_reference,
+          trigger: "manual_payment",
+          payment_method: input.method,
+        },
+      });
     }
+
+    await logAdminBookingAssistAudit(supabase, {
+      adminProfileId: input.adminProfileId,
+      customerId: booking.customer_id ?? "",
+      bookingId: booking.id,
+      action: ADMIN_BOOKING_ASSIST_ACTIONS.paymentRecorded,
+      idempotencyKey,
+      payload: {
+        booking_reference: booking.booking_reference,
+        amount_cents: input.amountCents,
+        payment_method: input.method,
+        fully_paid: update.fullyPaid,
+        zoho_recorded: zohoRecorded,
+      },
+    });
 
     // Optional confirmation email to the customer.
     if (input.sendConfirmation && update.fullyPaid && customer?.email) {

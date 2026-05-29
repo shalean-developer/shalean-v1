@@ -4,6 +4,20 @@ import {
   recordManualBookingPayment,
 } from "./billing";
 
+const dispatchCleanersForPaidBooking = vi.fn(async () => undefined);
+
+vi.mock("@/lib/regular-cleaning/dispatch", () => ({
+  dispatchCleanersForPaidBooking: (...args: unknown[]) => dispatchCleanersForPaidBooking(...args),
+}));
+
+vi.mock("@/lib/admin/audit", () => ({
+  ADMIN_BOOKING_ASSIST_ACTIONS: {
+    paymentRecorded: "payment_recorded",
+    cleanerDispatched: "cleaner_dispatched",
+  },
+  logAdminBookingAssistAudit: vi.fn(async () => undefined),
+}));
+
 // A small in-memory Supabase stub covering just the query shapes used by the
 // admin billing orchestration. Records inserts/updates per table for assertions.
 type Store = {
@@ -209,6 +223,7 @@ describe("ensurePaystackPaymentLink", () => {
 
 describe("recordManualBookingPayment", () => {
   beforeEach(() => {
+    dispatchCleanersForPaidBooking.mockClear();
     vi.stubEnv("ZOHO_CLIENT_ID", "client-id");
     vi.stubEnv("ZOHO_CLIENT_SECRET", "client-secret");
     vi.stubEnv("ZOHO_REFRESH_TOKEN", "refresh-token");
@@ -275,6 +290,8 @@ describe("recordManualBookingPayment", () => {
     expect(store.booking.payment_method).toBe("eft");
     expect(store.booking.amount_paid_cents).toBe(50000);
     expect(store.booking.balance_remaining_cents).toBe(0);
+    expect(store.booking.invoice_status).toBe("paid");
+    expect(dispatchCleanersForPaidBooking).toHaveBeenCalledTimes(1);
     // An audit/payment record was written, and the Zoho payment used EFT.
     expect(store.paymentRecords).toHaveLength(1);
     expect(customerPaymentBodies).toHaveLength(1);
@@ -311,6 +328,7 @@ describe("recordManualBookingPayment", () => {
     // No booking mutation and no Zoho calls happened on the duplicate.
     expect(store.booking.payment_status).toBe("pending");
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(dispatchCleanersForPaidBooking).not.toHaveBeenCalled();
   });
 
   it("rejects a non-positive amount", async () => {

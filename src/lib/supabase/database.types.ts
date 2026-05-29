@@ -418,6 +418,45 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["bookings"]["Insert"]>;
         Relationships: [];
       };
+      admin_booking_assist_audit: {
+        Row: {
+          id: string;
+          admin_profile_id: string;
+          customer_id: string;
+          booking_id: string | null;
+          action: string;
+          idempotency_key: string;
+          payload: Json;
+          created_at: string;
+        };
+        Insert: {
+          admin_profile_id: string;
+          customer_id: string;
+          booking_id?: string | null;
+          action: string;
+          idempotency_key: string;
+          payload?: Json;
+        };
+        Update: Partial<Database["public"]["Tables"]["admin_booking_assist_audit"]["Insert"]>;
+        Relationships: [];
+      };
+      admin_booking_assist_idempotency: {
+        Row: {
+          idempotency_key: string;
+          admin_profile_id: string;
+          customer_id: string;
+          result: Json;
+          created_at: string;
+        };
+        Insert: {
+          idempotency_key: string;
+          admin_profile_id: string;
+          customer_id: string;
+          result: Json;
+        };
+        Update: Partial<Database["public"]["Tables"]["admin_booking_assist_idempotency"]["Insert"]>;
+        Relationships: [];
+      };
       admin_booking_payment_records: {
         Row: {
           id: string;

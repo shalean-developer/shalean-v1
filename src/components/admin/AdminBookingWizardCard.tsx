@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import type { AddonRow, CleanerRow, CustomerRow, EquipmentRow } from "@/lib/admin/data";
@@ -51,14 +51,15 @@ export function AdminBookingWizardCard({
   const [selectedCleanerOption, setSelectedCleanerOption] = useState("");
   const [equipmentOptionKey, setEquipmentOptionKey] = useState(equipmentOptions[0]?.key ?? "");
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
-  const [idempotencyKey, setIdempotencyKey] = useState("");
+  const [idempotencyKey, setIdempotencyKey] = useState<string | null>(null);
   const fieldsetsRef = useRef<Array<HTMLFieldSetElement | null>>([]);
   const totalSteps = wizardSteps.length;
 
-  // Stable per-mount idempotency key so a double-submit can't create duplicate
-  // bookings. Generated after mount to avoid a hydration mismatch.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: generate a random key only on the client to avoid an SSR/CSR hydration mismatch.
+  // Stable per-mount idempotency key before the user can submit (layout effect
+  // runs before paint so the create button is not enabled without a key).
+  useLayoutEffect(() => {
+    // Client-only UUID before enabling submit; layout effect avoids a flash of an enabled button without a key.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional one-time client idempotency key
     setIdempotencyKey(crypto.randomUUID());
   }, []);
 
@@ -178,8 +179,16 @@ export function AdminBookingWizardCard({
         ))}
       </div>
 
-      <form action={action} className="mt-5 space-y-5">
-        <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
+      <form
+        action={action}
+        className="mt-5 space-y-5"
+        onSubmit={(event) => {
+          if (!idempotencyKey) {
+            event.preventDefault();
+          }
+        }}
+      >
+        <input type="hidden" name="idempotencyKey" value={idempotencyKey ?? ""} readOnly />
         <fieldset
           ref={(element) => {
             fieldsetsRef.current[0] = element;
@@ -401,7 +410,7 @@ export function AdminBookingWizardCard({
               <ChevronRight className="h-4 w-4" />
             </button>
           ) : (
-            <CreateBookingSubmitButton />
+            <CreateBookingSubmitButton idempotencyReady={Boolean(idempotencyKey)} />
           )}
         </div>
       </form>
@@ -409,16 +418,19 @@ export function AdminBookingWizardCard({
   );
 }
 
-function CreateBookingSubmitButton() {
+function CreateBookingSubmitButton({ idempotencyReady }: { idempotencyReady: boolean }) {
   const { pending } = useFormStatus();
+  const disabled = pending || !idempotencyReady;
+
   return (
     <button
       className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
       type="submit"
-      disabled={pending}
+      disabled={disabled}
       aria-busy={pending}
+      title={!idempotencyReady ? "Preparing secure booking reference…" : undefined}
     >
-      {pending ? "Creating booking…" : "Create admin booking"}
+      {pending ? "Creating booking…" : idempotencyReady ? "Create admin booking" : "Preparing…"}
     </button>
   );
 }

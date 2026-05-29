@@ -20,6 +20,33 @@ type DispatchAvailabilityContext = {
   busySlotsByCleaner: Map<string, Set<string>>;
 };
 
+async function loadBookingIdsForRecurringSeries(supabase: Supabase, seriesId: string) {
+  const result = await supabase
+    .from("bookings")
+    .select("id")
+    .eq("recurring_series_id", seriesId);
+
+  if (result.error) throw result.error;
+
+  return (result.data ?? []).map((booking) => booking.id);
+}
+
+/**
+ * Dispatch cleaner offers after a booking is paid (Paystack or manual).
+ * Idempotent: dispatchRegularCleaningOffers skips bookings that are not paid
+ * and avoids duplicate offers when offers already exist.
+ */
+export async function dispatchCleanersForPaidBooking(
+  supabase: Supabase,
+  booking: Pick<BookingRow, "id" | "recurring_series_id">,
+) {
+  const bookingIds = booking.recurring_series_id
+    ? await loadBookingIdsForRecurringSeries(supabase, booking.recurring_series_id)
+    : [booking.id];
+
+  await dispatchRegularCleaningOffers(supabase, bookingIds);
+}
+
 export async function dispatchRegularCleaningOffers(supabase: Supabase, bookingIds: string[]) {
   if (bookingIds.length === 0) {
     return;

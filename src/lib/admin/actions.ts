@@ -1,6 +1,5 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/server";
@@ -26,6 +25,12 @@ import { REGULAR_CLEANING_SLUG } from "@/lib/regular-cleaning/types";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 import { syncBookingToZohoBooks } from "@/lib/zoho/books";
+import { ADMIN_BOOKING_ASSIST_ACTIONS, logAdminBookingAssistAudit } from "@/lib/admin/audit";
+import {
+  claimAdminBookingCreation,
+  loadBookingIdsForIdempotencyKey,
+  persistAdminBookingIdempotencyOutcome,
+} from "@/lib/admin/booking-idempotency";
 import {
   checkBookingPaymentStatus,
   createUnpaidInvoiceForBooking,
@@ -362,28 +367,43 @@ export async function resetCustomerPasswordAction(formData: FormData) {
 }
 
 export async function createAdminBookingAction(formData: FormData) {
-  await requireAdmin();
+  const { profile } = await requireAdmin();
   const supabase = createSupabaseAdminClient();
   const customerId = requiredString(formData, "customerId");
   const customerResult = await supabase.from("customers").select("*").eq("id", customerId).single();
 
   if (customerResult.error) throw customerResult.error;
 
-  // Stable per-submit idempotency key from the client. A double-submit replays
-  // the same key, so we reuse the already-created booking instead of inserting a
-  // duplicate. Falls back to a fresh UUID if the client did not supply one.
-  const idempotencyKey = optionalString(formData, "idempotencyKey") ?? randomUUID();
+  const idempotencyKey = optionalString(formData, "idempotencyKey");
+  if (!idempotencyKey) {
+    redirect("/admin/bookings?error=idempotency-required");
+  }
 
-  // If this exact submit already produced a booking, don't create another one.
-  const existing = await supabase
-    .from("bookings")
-    .select("id")
-    .eq("idempotency_key", idempotencyKey)
-    .order("occurrence_index", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  if (existing.error) throw existing.error;
-  if (existing.data) {
+  const claim = await claimAdminBookingCreation(supabase, {
+    idempotencyKey,
+    adminProfileId: profile.id,
+    customerId,
+  });
+
+  if (claim.status === "reused") {
+    console.info("ADMIN_BOOKING_CREATE_REUSED", {
+      booking_reference: claim.outcome.bookingReferences[0] ?? null,
+      idempotency_key: idempotencyKey,
+      admin_user_id: profile.id,
+      booking_ids: claim.outcome.bookingIds,
+      created_at: new Date().toISOString(),
+    });
+    await logAdminBookingAssistAudit(supabase, {
+      adminProfileId: profile.id,
+      customerId,
+      bookingId: claim.outcome.primaryBookingId,
+      action: ADMIN_BOOKING_ASSIST_ACTIONS.bookingCreateReused,
+      idempotencyKey,
+      payload: {
+        booking_ids: claim.outcome.bookingIds,
+        booking_references: claim.outcome.bookingReferences,
+      },
+    });
     revalidateAdmin();
     redirect("/admin/bookings?success=booking-created");
   }
@@ -439,6 +459,22 @@ export async function createAdminBookingAction(formData: FormData) {
     // A unique-constraint violation means a concurrent double-submit already
     // created this booking — treat it as success rather than a duplicate.
     if (error instanceof Error && /duplicate key|23505/.test(error.message)) {
+      const raced = await loadBookingIdsForIdempotencyKey(supabase, idempotencyKey);
+      if (raced) {
+        await persistAdminBookingIdempotencyOutcome(supabase, {
+          idempotencyKey,
+          adminProfileId: profile.id,
+          customerId,
+          outcome: raced,
+        });
+        console.info("ADMIN_BOOKING_CREATE_REUSED", {
+          booking_reference: raced.bookingReferences[0] ?? null,
+          idempotency_key: idempotencyKey,
+          admin_user_id: profile.id,
+          booking_ids: raced.bookingIds,
+          created_at: new Date().toISOString(),
+        });
+      }
       revalidateAdmin();
       redirect("/admin/bookings?success=booking-created");
     }
@@ -450,6 +486,38 @@ export async function createAdminBookingAction(formData: FormData) {
     }
     console.error("ADMIN_BOOKING_CREATE_FAILED", error);
     redirect("/admin/bookings?error=create-failed");
+  }
+
+  const idempotencyOutcome = await loadBookingIdsForIdempotencyKey(supabase, idempotencyKey);
+  if (idempotencyOutcome) {
+    await persistAdminBookingIdempotencyOutcome(supabase, {
+      idempotencyKey,
+      adminProfileId: profile.id,
+      customerId,
+      outcome: idempotencyOutcome,
+    });
+
+    const primaryReference = idempotencyOutcome.bookingReferences[0] ?? null;
+    console.info("ADMIN_BOOKING_CREATED", {
+      booking_reference: primaryReference,
+      idempotency_key: idempotencyKey,
+      admin_user_id: profile.id,
+      booking_ids: idempotencyOutcome.bookingIds,
+      created_at: new Date().toISOString(),
+    });
+
+    await logAdminBookingAssistAudit(supabase, {
+      adminProfileId: profile.id,
+      customerId,
+      bookingId: idempotencyOutcome.primaryBookingId,
+      action: ADMIN_BOOKING_ASSIST_ACTIONS.bookingCreated,
+      idempotencyKey,
+      payload: {
+        booking_ids: idempotencyOutcome.bookingIds,
+        booking_references: idempotencyOutcome.bookingReferences,
+        occurrence_count: idempotencyOutcome.bookingIds.length,
+      },
+    });
   }
 
   // Issue an unpaid Zoho invoice + Paystack payment link for the new booking.
@@ -465,12 +533,31 @@ export async function createAdminBookingAction(formData: FormData) {
 }
 
 export async function retryZohoSyncAction(formData: FormData) {
-  await requireAdmin();
+  const { profile } = await requireAdmin();
+  const supabase = createSupabaseAdminClient();
   const bookingId = requiredString(formData, "bookingId");
+  const bookingRow = await supabase.from("bookings").select("customer_id, booking_reference").eq("id", bookingId).maybeSingle();
+  if (bookingRow.error) throw bookingRow.error;
 
   // Admin retry must work for unpaid admin bookings too: create/repair the
   // invoice without requiring payment, and never create a duplicate invoice.
   const result = await syncBookingToZohoBooks(bookingId, { force: true, allowUnpaid: true });
+
+  if (bookingRow.data?.customer_id) {
+    await logAdminBookingAssistAudit(supabase, {
+      adminProfileId: profile.id,
+      customerId: bookingRow.data.customer_id,
+      bookingId,
+      action: result.status === "synced"
+        ? ADMIN_BOOKING_ASSIST_ACTIONS.zohoSyncSuccessful
+        : ADMIN_BOOKING_ASSIST_ACTIONS.zohoSyncFailed,
+      payload: {
+        booking_reference: bookingRow.data.booking_reference,
+        zoho_status: result.status,
+        error: result.error ?? null,
+      },
+    });
+  }
 
   revalidatePath("/admin/bookings");
   revalidatePath("/admin/payments");
@@ -484,9 +571,30 @@ export async function retryZohoSyncAction(formData: FormData) {
 }
 
 export async function createInvoiceAction(formData: FormData) {
-  await requireAdmin();
+  const { profile } = await requireAdmin();
+  const supabase = createSupabaseAdminClient();
   const bookingId = requiredString(formData, "bookingId");
-  const result = await createUnpaidInvoiceForBooking(createSupabaseAdminClient(), bookingId);
+  const bookingRow = await supabase.from("bookings").select("customer_id, booking_reference").eq("id", bookingId).maybeSingle();
+  if (bookingRow.error) throw bookingRow.error;
+
+  const result = await createUnpaidInvoiceForBooking(supabase, bookingId);
+
+  if (bookingRow.data?.customer_id) {
+    await logAdminBookingAssistAudit(supabase, {
+      adminProfileId: profile.id,
+      customerId: bookingRow.data.customer_id,
+      bookingId,
+      action: result.status === "synced"
+        ? ADMIN_BOOKING_ASSIST_ACTIONS.invoiceCreated
+        : ADMIN_BOOKING_ASSIST_ACTIONS.zohoSyncFailed,
+      payload: {
+        booking_reference: bookingRow.data.booking_reference,
+        zoho_status: result.status,
+        error: result.error ?? null,
+      },
+    });
+  }
+
   revalidatePath("/admin/bookings");
   const status = result.status === "synced"
     ? "invoice-created"
@@ -497,9 +605,24 @@ export async function createInvoiceAction(formData: FormData) {
 }
 
 export async function sendPaymentLinkAction(formData: FormData) {
-  await requireAdmin();
+  const { profile } = await requireAdmin();
+  const supabase = createSupabaseAdminClient();
   const bookingId = requiredString(formData, "bookingId");
-  const result = await sendPaymentLinkToCustomer(createSupabaseAdminClient(), bookingId);
+  const bookingRow = await supabase.from("bookings").select("customer_id, booking_reference").eq("id", bookingId).maybeSingle();
+  if (bookingRow.error) throw bookingRow.error;
+
+  const result = await sendPaymentLinkToCustomer(supabase, bookingId);
+
+  if (result.ok && bookingRow.data?.customer_id) {
+    await logAdminBookingAssistAudit(supabase, {
+      adminProfileId: profile.id,
+      customerId: bookingRow.data.customer_id,
+      bookingId,
+      action: ADMIN_BOOKING_ASSIST_ACTIONS.invoiceSent,
+      payload: { booking_reference: bookingRow.data.booking_reference },
+    });
+  }
+
   revalidatePath("/admin/bookings");
   redirect(`/admin/bookings?success=${result.ok ? "link-sent" : "link-failed"}`);
 }
@@ -567,9 +690,24 @@ export async function markBookingPaidAction(formData: FormData) {
 }
 
 export async function markBookingUnpaidAction(formData: FormData) {
-  await requireAdmin();
+  const { profile } = await requireAdmin();
+  const supabase = createSupabaseAdminClient();
   const bookingId = requiredString(formData, "bookingId");
-  const result = await markBookingUnpaid(createSupabaseAdminClient(), bookingId);
+  const bookingRow = await supabase.from("bookings").select("customer_id, booking_reference").eq("id", bookingId).maybeSingle();
+  if (bookingRow.error) throw bookingRow.error;
+
+  const result = await markBookingUnpaid(supabase, bookingId);
+
+  if (result.ok && bookingRow.data?.customer_id) {
+    await logAdminBookingAssistAudit(supabase, {
+      adminProfileId: profile.id,
+      customerId: bookingRow.data.customer_id,
+      bookingId,
+      action: ADMIN_BOOKING_ASSIST_ACTIONS.paymentReversed,
+      payload: { booking_reference: bookingRow.data.booking_reference },
+    });
+  }
+
   revalidatePath("/admin/bookings");
   revalidatePath("/admin/payments");
   redirect(`/admin/bookings?success=${result.ok ? "marked-unpaid" : "override-failed"}`);
