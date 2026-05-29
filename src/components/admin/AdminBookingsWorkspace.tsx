@@ -58,7 +58,7 @@ export function AdminBookingsWorkspace({
           setActiveTab("needs_action");
         } else if (current === "needs_action" || (next === null && filter === "needs_action")) {
           setActiveTab("all");
-        } else if (next !== null && next !== "needs_action" && activeTab === "needs_action") {
+        } else if (next !== null && activeTab === "needs_action") {
           setActiveTab("all");
         }
         return next;
