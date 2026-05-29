@@ -73,24 +73,7 @@ export default async function AdminBookingsPage({ searchParams }: PageProps) {
         </Card>
       </section>
       <section className="space-y-4">
-        {actionSuccess === "booking-created" ? (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900">
-            Admin booking created successfully.
-          </div>
-        ) : null}
-        {actionSuccess === "zoho-synced" ? (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900">
-            Zoho Books sync completed successfully.
-          </div>
-        ) : actionSuccess === "zoho-skipped" ? (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800">
-            Zoho Books sync was skipped (integration not configured or booking not paid).
-          </div>
-        ) : actionSuccess === "zoho-failed" ? (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-900">
-            Zoho Books sync failed. Review the error on the booking row and retry.
-          </div>
-        ) : null}
+        {actionSuccess ? <SuccessBanner code={actionSuccess} /> : null}
         {actionError === "catalog-config" ? (
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
             Regular Cleaning catalog configuration is incomplete. Ensure at least one active bedroom/bathroom pricing rule and at least one active equipment option are configured before creating admin bookings.
@@ -106,6 +89,10 @@ export default async function AdminBookingsPage({ searchParams }: PageProps) {
         ) : actionError === "create-failed" ? (
           <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-900">
             Admin booking could not be created due to a server error. Please verify the form details and try again.
+          </div>
+        ) : actionError === "payment-method-invalid" ? (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-900">
+            Unsupported payment method selected. Choose one of the supported payment methods.
           </div>
         ) : null}
         {!management.hasActivePricingRules ? (
@@ -126,6 +113,39 @@ export default async function AdminBookingsPage({ searchParams }: PageProps) {
       </section>
     </div>
   );
+}
+
+type BannerTone = "success" | "info" | "error";
+
+const SUCCESS_BANNERS: Record<string, { tone: BannerTone; message: string }> = {
+  "booking-created": { tone: "success", message: "Admin booking created successfully." },
+  "booking-billed": { tone: "success", message: "Booking created. Unpaid invoice and Paystack payment link issued." },
+  "invoice-created": { tone: "success", message: "Unpaid Zoho Books invoice created for this booking." },
+  "zoho-synced": { tone: "success", message: "Zoho Books sync completed successfully." },
+  "zoho-skipped": { tone: "info", message: "Zoho Books sync was skipped (integration not configured)." },
+  "zoho-failed": { tone: "error", message: "Zoho Books sync failed. Review the error on the booking row and retry." },
+  "link-sent": { tone: "success", message: "Payment link emailed to the customer." },
+  "link-ready": { tone: "success", message: "Paystack payment link is ready for this booking." },
+  "link-failed": { tone: "error", message: "Could not create or send the payment link. Check the customer email and Paystack configuration." },
+  "payment-confirmed": { tone: "success", message: "Payment confirmed with Paystack. Booking marked as paid." },
+  "payment-pending": { tone: "info", message: "Payment is still pending with Paystack." },
+  "payment-check-failed": { tone: "error", message: "Could not verify the payment status with Paystack." },
+  "payment-recorded": { tone: "success", message: "Payment recorded. Booking and Zoho invoice updated." },
+  "payment-record-failed": { tone: "error", message: "Could not record the payment. Please try again." },
+  "marked-unpaid": { tone: "info", message: "Booking reset to unpaid." },
+  "invoice-voided": { tone: "info", message: "Zoho invoice voided for this booking." },
+  "override-failed": { tone: "error", message: "Could not apply the override. Please try again." },
+};
+
+function SuccessBanner({ code }: { code: string }) {
+  const banner = SUCCESS_BANNERS[code];
+  if (!banner) return null;
+  const tone = banner.tone === "success"
+    ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+    : banner.tone === "error"
+      ? "border-rose-200 bg-rose-50 text-rose-900"
+      : "border-slate-200 bg-slate-50 text-slate-800";
+  return <div className={`rounded-xl border px-4 py-3 text-sm font-semibold ${tone}`}>{banner.message}</div>;
 }
 
 function MetricItem({ label, value }: { label: string; value: string }) {

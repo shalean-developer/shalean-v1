@@ -1,7 +1,8 @@
 "use client";
 
 import type React from "react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import type { AddonRow, CleanerRow, CustomerRow, EquipmentRow } from "@/lib/admin/data";
 import { weekdayFromDate } from "@/lib/admin/utils";
@@ -50,8 +51,16 @@ export function AdminBookingWizardCard({
   const [selectedCleanerOption, setSelectedCleanerOption] = useState("");
   const [equipmentOptionKey, setEquipmentOptionKey] = useState(equipmentOptions[0]?.key ?? "");
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
+  const [idempotencyKey, setIdempotencyKey] = useState("");
   const fieldsetsRef = useRef<Array<HTMLFieldSetElement | null>>([]);
   const totalSteps = wizardSteps.length;
+
+  // Stable per-mount idempotency key so a double-submit can't create duplicate
+  // bookings. Generated after mount to avoid a hydration mismatch.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: generate a random key only on the client to avoid an SSR/CSR hydration mismatch.
+    setIdempotencyKey(crypto.randomUUID());
+  }, []);
 
   const selectedCustomer = useMemo(
     () => customers.find((customer) => customer.id === customerId),
@@ -170,6 +179,7 @@ export function AdminBookingWizardCard({
       </div>
 
       <form action={action} className="mt-5 space-y-5">
+        <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
         <fieldset
           ref={(element) => {
             fieldsetsRef.current[0] = element;
@@ -391,13 +401,25 @@ export function AdminBookingWizardCard({
               <ChevronRight className="h-4 w-4" />
             </button>
           ) : (
-            <button className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-600" type="submit">
-              Create admin booking
-            </button>
+            <CreateBookingSubmitButton />
           )}
         </div>
       </form>
     </div>
+  );
+}
+
+function CreateBookingSubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+      type="submit"
+      disabled={pending}
+      aria-busy={pending}
+    >
+      {pending ? "Creating booking…" : "Create admin booking"}
+    </button>
   );
 }
 

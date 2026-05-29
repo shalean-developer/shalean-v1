@@ -1,11 +1,20 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ExternalLink, RefreshCw, Search } from "lucide-react";
+import { ExternalLink, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { retryZohoSyncAction } from "@/lib/admin/actions";
+import { AdminBookingRowActions } from "@/components/admin/AdminBookingRowActions";
 import type { AdminBookingListItem, CleanerRow } from "@/lib/admin/data";
 import { formatZar, slugToTitle } from "@/lib/utils";
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  paystack: "Paystack",
+  eft: "EFT",
+  cash: "Cash",
+  card: "Card",
+  corporate: "Corporate",
+  other: "Other",
+};
 
 const PAGE_SIZE = 12;
 
@@ -160,8 +169,10 @@ export function AdminBookingsDataGrid({
                 <th className="px-4 py-3 text-left font-semibold">Service</th>
                 <th className="px-4 py-3 text-left font-semibold">Cleaner</th>
                 <th className="px-4 py-3 text-left font-semibold">Amount</th>
-                <th className="px-4 py-3 text-left font-semibold">Status</th>
+                <th className="px-4 py-3 text-left font-semibold">Payment</th>
+                <th className="px-4 py-3 text-left font-semibold">Booking status</th>
                 <th className="px-4 py-3 text-left font-semibold">Zoho Books</th>
+                <th className="px-4 py-3 text-left font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -183,19 +194,22 @@ export function AdminBookingsDataGrid({
                     <td className="px-4 py-3 text-slate-700">{cleanerName}</td>
                     <td className="px-4 py-3 font-semibold text-slate-900">{formatZar(booking.final_total_cents)}</td>
                     <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1.5">
-                        <StatusPill value={booking.booking_status} tone="booking" />
-                        <StatusPill value={paymentStatus} tone="payment" />
-                      </div>
+                      <PaymentCell booking={booking} paymentStatus={paymentStatus} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusPill value={booking.booking_status} tone="booking" />
                     </td>
                     <td className="px-4 py-3">
                       <ZohoCell booking={booking} />
+                    </td>
+                    <td className="px-4 py-3 align-top">
+                      <AdminBookingRowActions booking={booking} />
                     </td>
                   </tr>
                 );
               }) : (
                 <tr>
-                  <td className="px-4 py-8 text-center text-sm text-slate-500" colSpan={7}>No bookings match these filters.</td>
+                  <td className="px-4 py-8 text-center text-sm text-slate-500" colSpan={9}>No bookings match these filters.</td>
                 </tr>
               )}
             </tbody>
@@ -223,10 +237,13 @@ export function AdminBookingsDataGrid({
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 <StatusPill value={booking.booking_status} tone="booking" />
-                <StatusPill value={paymentStatus} tone="payment" />
+                <PaymentCell booking={booking} paymentStatus={paymentStatus} />
               </div>
               <div className="mt-3 border-t border-slate-100 pt-3">
                 <ZohoCell booking={booking} />
+              </div>
+              <div className="mt-3 border-t border-slate-100 pt-3">
+                <AdminBookingRowActions booking={booking} />
               </div>
             </article>
           );
@@ -323,22 +340,34 @@ function ZohoCell({ booking }: { booking: AdminBookingListItem }) {
           Download PDF
         </a>
       ) : null}
+      {booking.invoice_status && booking.invoice_status !== "pending" ? (
+        <span className="text-xs text-slate-500">Invoice: {slugToTitle(booking.invoice_status)}</span>
+      ) : null}
       {status === "failed" && booking.zoho_sync_error ? (
         <span className="max-w-[220px] truncate text-xs text-rose-600" title={booking.zoho_sync_error}>
           {booking.zoho_sync_error}
         </span>
       ) : null}
-      {status !== "synced" ? (
-        <form action={retryZohoSyncAction}>
-          <input type="hidden" name="bookingId" value={booking.id} />
-          <button
-            type="submit"
-            className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
-          >
-            <RefreshCw className="h-3 w-3" />
-            Retry Zoho Sync
-          </button>
-        </form>
+    </div>
+  );
+}
+
+function PaymentCell({
+  booking,
+  paymentStatus,
+}: {
+  booking: AdminBookingListItem;
+  paymentStatus: string;
+}) {
+  const method = booking.payment_method;
+  return (
+    <div className="flex flex-col gap-1">
+      <StatusPill value={paymentStatus} tone="payment" />
+      {method ? (
+        <span className="text-xs text-slate-500">{PAYMENT_METHOD_LABELS[method] ?? slugToTitle(method)}</span>
+      ) : null}
+      {paymentStatus === "partially_paid" && booking.balance_remaining_cents != null ? (
+        <span className="text-xs text-amber-700">Balance {formatZar(booking.balance_remaining_cents)}</span>
       ) : null}
     </div>
   );
@@ -361,8 +390,9 @@ function StatusPill({ value, tone }: { value: string; tone: "booking" | "payment
   const base = tone === "booking"
     ? "border-sky-200 bg-sky-50 text-sky-700"
     : "border-emerald-200 bg-emerald-50 text-emerald-700";
-  const cancelled = value === "cancelled" || value === "refunded";
-  const pending = value === "pending" || value === "offered" || value === "awaiting_payment";
+  const cancelled = value === "cancelled" || value === "refunded" || value === "voided";
+  const pending = value === "pending" || value === "offered" || value === "awaiting_payment"
+    || value === "payment_pending" || value === "partially_paid";
 
   return (
     <Badge
