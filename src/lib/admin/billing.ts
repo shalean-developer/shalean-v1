@@ -318,8 +318,10 @@ export type SendPaymentLinkResult =
   | { ok: false; error: string };
 
 /**
- * Ensure an invoice + payment link exist, then email the customer the payment
- * link (Shalean-branded). Used for "Send invoice/payment link" and "Resend".
+ * Ensure an invoice + payment link exist, then email the customer a Shalean
+ * (Resend) payment email that directs them to log into THEIR dashboard to pay —
+ * the customer is never sent a raw Paystack/Zoho link. Used for "Send
+ * invoice/payment link" and "Resend".
  */
 export async function sendPaymentLinkToCustomer(
   supabase: Supabase,
@@ -333,28 +335,28 @@ export async function sendPaymentLinkToCustomer(
   }
   if (!customer?.email) return { ok: false, error: "Customer has no email on file." };
 
-  // Best-effort: make sure an unpaid invoice exists so the email can reference it.
+  // Best-effort: make sure an unpaid invoice + Paystack link exist so the
+  // dashboard "Pay now" button is ready. Neither blocks sending the email —
+  // the dashboard can (re)create the Paystack link on demand if needed.
   await createUnpaidInvoiceForBooking(supabase, bookingId);
+  await ensurePaystackPaymentLink(supabase, bookingId);
 
-  const link = await ensurePaystackPaymentLink(supabase, bookingId);
-  if (!link.ok) return { ok: false, error: link.error };
-  if ("alreadyPaid" in link && link.alreadyPaid) {
-    return { ok: false, error: "This booking is already paid." };
-  }
-
-  // Reload to capture the freshly persisted invoice number + reference.
+  // Reload to capture the freshly persisted invoice number + amount.
   const refreshed = await loadBookingWithCustomer(supabase, bookingId);
   const booking = refreshed?.booking ?? loaded.booking;
 
+  // Send the customer to their Shalean dashboard to log in and pay, NOT to a
+  // raw Paystack checkout link.
+  const dashboardUrl = `${appUrl()}/dashboard?booking=${booking.id}`;
   await notifyPaymentLink(supabase, {
     booking: bookingForNotification(booking),
     customer: { full_name: customer.full_name, email: customer.email, phone: customer.phone },
     amountCents: bookingAmountDueCents(booking),
-    paymentUrl: link.authorizationUrl,
+    paymentUrl: dashboardUrl,
     invoiceNumber: booking.zoho_invoice_number,
   });
 
-  return { ok: true, authorizationUrl: link.authorizationUrl };
+  return { ok: true, authorizationUrl: dashboardUrl };
 }
 
 // ---------------------------------------------------------------------------

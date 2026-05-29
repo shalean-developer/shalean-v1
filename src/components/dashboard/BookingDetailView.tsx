@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ClearBookingDraft } from "@/components/booking/ClearBookingDraft";
 import { BookingActions } from "@/components/dashboard/BookingActions";
+import { payBookingAction } from "@/lib/dashboard/actions";
 import type { DashboardBooking } from "@/lib/dashboard/data";
 import { buildWhatsappLink, supportContact } from "@/lib/config/site";
 import { formatZar, slugToTitle } from "@/lib/utils";
@@ -70,6 +71,30 @@ export function BookingDetailView({ booking, reconciliationMessage }: BookingDet
       {reconciliationMessage ? (
         <Card className="border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-900">
           {reconciliationMessage}
+        </Card>
+      ) : null}
+
+      {!paymentPaid && !isCancelled ? (
+        <Card className="border-emerald-200 bg-emerald-50 p-5 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <SectionHeading icon={<CreditCard className="h-5 w-5" aria-hidden />} title="Payment due" />
+              <p className="mt-2 text-sm text-emerald-900">
+                Pay securely to confirm your {slugToTitle(booking.service_slug)} booking.
+              </p>
+              <p className="mt-1 text-2xl font-black text-emerald-900">{formatZar(getPaymentAmount(booking))}</p>
+            </div>
+            <form action={payBookingAction}>
+              <input type="hidden" name="bookingId" value={booking.id} />
+              <button
+                type="submit"
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800"
+              >
+                <CreditCard className="h-4 w-4" aria-hidden />
+                Pay now
+              </button>
+            </form>
+          </div>
         </Card>
       ) : null}
 

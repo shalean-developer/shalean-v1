@@ -680,6 +680,10 @@ export async function syncBookingToZohoBooks(
         amountCents: amountDueCents,
         invoiceUrl,
         pdfBase64: invoicePdfBase64,
+        // Only email the customer the Zoho invoice once it is paid. For an unpaid
+        // admin-issued invoice the customer instead receives a Shalean payment
+        // email pointing to their dashboard (not the Zoho invoice link).
+        notifyCustomer: invoiceStatus === "paid",
       });
     }
 

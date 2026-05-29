@@ -114,7 +114,7 @@ describe("payment link email", () => {
       suburb: "Sea Point",
       address: "5 Beach Road",
       amountCents: 65000,
-      paymentUrl: "https://checkout.paystack.com/abc123",
+      paymentUrl: "https://app.shalean.test/dashboard?booking=abc123",
       invoiceNumber: "INV-000777",
     });
     expect(email.subject).toContain("SHL-PAYLINK1");
@@ -123,13 +123,15 @@ describe("payment link email", () => {
     expect(email.html).toContain("2026-06-10");
     expect(email.html).toContain("Sea Point");
     expect(email.html).toContain(formatZar(65000));
-    expect(email.html).toContain("https://checkout.paystack.com/abc123");
-    expect(email.html).toContain("Pay now");
+    // Directs the customer to their Shalean dashboard to log in and pay.
+    expect(email.html).toContain("https://app.shalean.test/dashboard?booking=abc123");
+    expect(email.html).toContain("Log in to pay");
+    expect(email.html.toLowerCase()).toContain("dashboard");
     // Branding + support details are present.
     expect(email.html).toContain(shaleanBrand.name);
     expect(email.html).toContain("087 153 5250");
-    // Plain-text part includes the raw link for clients that strip the button.
-    expect(email.text).toContain("https://checkout.paystack.com/abc123");
+    // Plain-text part includes the dashboard link for clients that strip the button.
+    expect(email.text).toContain("https://app.shalean.test/dashboard?booking=abc123");
   });
 
   it("renders the payment link via the registry by type", () => {
@@ -141,10 +143,10 @@ describe("payment link email", () => {
       bookingDate: "2026-06-10",
       bookingTime: "08:00-12:00",
       amountCents: 65000,
-      paymentUrl: "https://checkout.paystack.com/xyz",
+      paymentUrl: "https://app.shalean.test/dashboard?booking=xyz",
     });
     expect(email.html).toContain("SHL-REG00001");
-    expect(email.html).toContain("https://checkout.paystack.com/xyz");
+    expect(email.html).toContain("https://app.shalean.test/dashboard?booking=xyz");
   });
 });
 

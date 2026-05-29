@@ -233,9 +233,16 @@ export async function notifyInvoiceCreated(
     dueDate?: string | null;
     /** Base64-encoded invoice PDF, attached to the email when present. */
     pdfBase64?: string | null;
+    /**
+     * Whether to email the customer. Defaults to true. Set false for unpaid
+     * admin-issued invoices — the customer is instead sent a Shalean payment-link
+     * email that points to their dashboard, not the Zoho invoice.
+     */
+    notifyCustomer?: boolean;
   },
 ): Promise<void> {
   const addresses = getEmailAddresses();
+  const notifyCustomer = args.notifyCustomer ?? true;
   const attachments = args.pdfBase64
     ? [
         {
@@ -247,7 +254,7 @@ export async function notifyInvoiceCreated(
     : undefined;
 
   await safe("invoice_created", async () => {
-    if (args.customerEmail) {
+    if (notifyCustomer && args.customerEmail) {
       await enqueueNotification(supabase, {
         type: "invoice_created",
         to: args.customerEmail,

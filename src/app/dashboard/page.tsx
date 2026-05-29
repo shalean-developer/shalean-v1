@@ -22,7 +22,14 @@ export default async function CustomerDashboardPage({ searchParams }: PageProps)
   const params = await searchParams;
   const bookingId = getParam(params, "booking");
   const reference = getParam(params, "reference") ?? getParam(params, "trxref");
+  const payStatus = getParam(params, "pay");
   let reconciliationMessage: string | null = null;
+
+  if (payStatus === "already") {
+    reconciliationMessage = "This booking is already paid.";
+  } else if (payStatus === "error") {
+    reconciliationMessage = "We couldn't start the payment just now. Please try again, or contact support.";
+  }
 
   if (bookingId && reference) {
     try {

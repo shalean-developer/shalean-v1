@@ -236,13 +236,13 @@ export function PaymentLinkEmail(data: PaymentLinkData): EmailContent {
     { label: "Where", value: [data.address, data.suburb].filter(Boolean).join(", ") },
     { label: "Amount due", value: money(data.amountCents) },
   ];
-  const button = renderButton("Pay now", data.paymentUrl);
+  const button = renderButton("Log in to pay", data.paymentUrl);
   const body = section(rows, button);
   const layout = renderEmailLayout({
     heading: "Complete your payment",
-    intro: `Hi ${data.customerName}, your ${data.serviceName} booking with ${shaleanBrand.shortName} is reserved. Please complete payment using the secure link below to confirm it.`,
+    intro: `Hi ${data.customerName}, your ${data.serviceName} booking with ${shaleanBrand.shortName} is reserved. Log in to your Shalean dashboard to review the details and pay securely.`,
     bodyHtml: body.html,
-    bodyText: `${body.text}\n\nPay now: ${data.paymentUrl}`,
+    bodyText: `${body.text}\n\nLog in to your dashboard to pay: ${data.paymentUrl}`,
   });
   return { subject: `Payment link for your booking - ${data.bookingReference}`, ...layout };
 }
