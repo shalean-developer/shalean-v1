@@ -4,7 +4,11 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
 import { upsertCustomerIdentity } from "@/lib/customers/identity";
-import { cleanerEmailFromPhone, validateCleanerPhone } from "./cleaner";
+import {
+  cleanerEmailFromPhone,
+  cleanerLoginEmailsFromPhone,
+  validateCleanerPhone,
+} from "./cleaner";
 
 export const cleanerSessionCookie = "shalean_cleaner_session";
 export const shaleanAdminEmail = "admin@shalean.co.za";
@@ -149,11 +153,19 @@ export async function loginCleanerWithPassword(input: { phone: string; password:
     throw new Error("Password is required.");
   }
 
-  const email = cleanerEmailFromPhone(phone);
   const supabase = await createSupabaseServerClient();
-  const signInResult = await supabase.auth.signInWithPassword({ email, password: input.password });
+  const loginEmails = cleanerLoginEmailsFromPhone(phone);
+  let signedInUser: { id: string } | null = null;
 
-  if (signInResult.error || !signInResult.data.user) {
+  for (const email of loginEmails) {
+    const signInResult = await supabase.auth.signInWithPassword({ email, password: input.password });
+    if (!signInResult.error && signInResult.data.user) {
+      signedInUser = signInResult.data.user;
+      break;
+    }
+  }
+
+  if (!signedInUser) {
     throw new Error("Invalid phone number or password.");
   }
 
@@ -161,8 +173,7 @@ export async function loginCleanerWithPassword(input: { phone: string; password:
   const cleanerResult = await admin
     .from("cleaners")
     .select("*")
-    .eq("auth_user_id", signInResult.data.user.id)
-    .eq("auth_email", email)
+    .eq("auth_user_id", signedInUser.id)
     .maybeSingle();
 
   if (cleanerResult.error) throw cleanerResult.error;
@@ -171,9 +182,34 @@ export async function loginCleanerWithPassword(input: { phone: string; password:
     throw new Error("Invalid phone number or password.");
   }
 
-  await admin.from("cleaners").update({ last_login_at: new Date().toISOString() }).eq("id", cleanerResult.data.id);
+  const canonicalEmail = cleanerEmailFromPhone(phone);
+  const canonicalPhone = validateCleanerPhone(cleanerResult.data.phone ?? phone);
+  const healUpdate: { auth_email: string; phone: string; last_login_at: string } = {
+    auth_email: canonicalEmail,
+    phone: canonicalPhone,
+    last_login_at: new Date().toISOString(),
+  };
 
-  return cleanerResult.data;
+  if (
+    cleanerResult.data.auth_email !== canonicalEmail ||
+    cleanerResult.data.phone !== canonicalPhone
+  ) {
+    const authUserId = cleanerResult.data.auth_user_id;
+    if (authUserId) {
+      await admin.auth.admin.updateUserById(authUserId, {
+        email: canonicalEmail,
+        user_metadata: {
+          full_name: cleanerResult.data.full_name ?? cleanerResult.data.display_name ?? "Shalean Cleaner",
+          phone: canonicalPhone,
+        },
+        app_metadata: { role: "cleaner" },
+      });
+    }
+  }
+
+  await admin.from("cleaners").update(healUpdate).eq("id", cleanerResult.data.id);
+
+  return { ...cleanerResult.data, auth_email: canonicalEmail, phone: canonicalPhone };
 }
 
 export async function getCleanerSession() {
