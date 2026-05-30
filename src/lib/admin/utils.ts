@@ -1,7 +1,7 @@
-import { cleanCleanerPhone, cleanerEmailFromPhone as authCleanerEmailFromPhone } from "@/lib/auth/cleaner";
+import { cleanerEmailFromPhone as authCleanerEmailFromPhone, validateCleanerPhone } from "@/lib/auth/cleaner";
 
 export function normalizeAdminCleanerPhone(phone: string) {
-  return cleanCleanerPhone(phone);
+  return validateCleanerPhone(phone);
 }
 
 export function cleanerEmailFromPhone(phone: string) {
